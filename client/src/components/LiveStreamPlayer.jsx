@@ -6,53 +6,124 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
+import { apiDetectFrame } from '../services/api';
 
 export const LiveStreamPlayer = () => {
   const {
     protectionMode,
     activeAlert,
     dismissAlert,
+    triggerIntruderAlert,
     backendStatus,
   } = useSecurity();
 
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
+  const [mediaStream, setMediaStream] = useState(null);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   // Direct Attached System Camera Feed (getUserMedia)
   useEffect(() => {
-    let stream = null;
-    const currentVideoEl = videoRef.current;
+    let localStream = null;
+    let isCancelled = false;
 
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
-        .then((s) => {
-          stream = s;
-          if (currentVideoEl) {
-            currentVideoEl.srcObject = s;
-            currentVideoEl.play().catch(() => {});
-          }
-          setHasCameraAccess(true);
-        })
-        .catch((err) => {
-          console.info('Direct system camera access info:', err?.message || err);
-          setHasCameraAccess(false);
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn('getUserMedia is not supported by this browser');
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user',
+          },
+          audio: false,
         });
+
+        if (isCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        localStream = stream;
+        setMediaStream(stream);
+        setHasCameraAccess(true);
+      } catch (err) {
+        console.info('Direct system camera access notice:', err?.message || err);
+        setHasCameraAccess(false);
+      }
     }
 
+    startCamera();
+
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-      if (currentVideoEl && currentVideoEl.srcObject) {
-        const tracks = currentVideoEl.srcObject.getTracks();
-        tracks.forEach((track) => track.stop());
-        currentVideoEl.srcObject = null;
+      isCancelled = true;
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
+
+  // Guarantee that whenever mediaStream changes, videoRef has srcObject attached and plays
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && mediaStream) {
+      video.srcObject = mediaStream;
+      video.play().catch((e) => console.warn('Webcam play error:', e));
+    }
+  }, [mediaStream]);
+
+  // Frame Capture Loop: sends base64 image string to backend when Protection Mode is ON
+  useEffect(() => {
+    if (!protectionMode) return;
+
+    let isSending = false;
+    const interval = setInterval(async () => {
+      if (isSending) return;
+      try {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        if (hasCameraAccess && video && video.readyState >= 2) {
+          // Adjust canvas resolution dynamically to match camera video
+          if (video.videoWidth && canvas.width !== video.videoWidth) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        } else {
+          // Fallback test frame if hardware camera is not yet ready
+          ctx.fillStyle = '#121418';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#64748b';
+          ctx.font = '16px monospace';
+          ctx.fillText('IMMUNOAI STANDBY SURVEILLANCE', 20, 40);
+        }
+
+        const base64Image = canvas.toDataURL('image/jpeg', 0.70);
+        isSending = true;
+        const res = await apiDetectFrame(base64Image);
+
+        // Fail-safe immediate alert trigger if confirmed by 5 continuous frames
+        if (res?.alert_triggered && res?.new_incident) {
+          triggerIntruderAlert(res.new_incident);
+        }
+      } catch (err) {
+        console.warn('Frame detection dispatch notice:', err?.message);
+      } finally {
+        isSending = false;
+      }
+    }, 600); // 600ms (~1.6 FPS): 5 continuous frames = 3s detection window
+
+    return () => clearInterval(interval);
+  }, [protectionMode, hasCameraAccess, triggerIntruderAlert]);
 
   const handleDismissAlert = () => {
     dismissAlert();
@@ -86,33 +157,24 @@ export const LiveStreamPlayer = () => {
 
   return (
     <div className="stream-card-wrapper" ref={containerRef}>
+      {/* Hidden canvas used to extract base64 frame string for the Python model */}
+      <canvas ref={canvasRef} width={640} height={360} style={{ display: 'none' }} />
+
       {/* Stream Container */}
       <div className={`stream-player-container ${activeAlert ? 'alert-active' : ''}`}>
-        {/* Backend Live Video Stream or Browser Attached Webcam */}
-        {backendStatus?.online ? (
-          <img
-            src={`${backendStatus.url}/api/stream/cam1`}
-            alt="Live Backend Camera Stream"
-            className="stream-media backend-mjpeg-stream"
-          />
-        ) : hasCameraAccess ? (
-          <video
-            ref={videoRef}
-            className="stream-media"
-            autoPlay
-            playsInline
-            muted
-          />
-        ) : (
-          /* Graceful Direct Feed Canvas when testing without a physical webcam */
+        {/* Single persistent Video Element — always mounted so stream never detaches */}
+        <video
+          ref={videoRef}
+          className="stream-media"
+          autoPlay
+          playsInline
+          muted
+          style={{ display: hasCameraAccess ? 'block' : 'none' }}
+        />
+
+        {/* Fallback backdrop while camera is connecting or when camera is offline */}
+        {!hasCameraAccess && (
           <div className="stream-poster-viewport direct-camera-backdrop">
-            <video
-              ref={videoRef}
-              className="stream-media direct-hidden-video"
-              autoPlay
-              playsInline
-              muted
-            />
             <img
               src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85"
               alt="Direct System Camera Feed"

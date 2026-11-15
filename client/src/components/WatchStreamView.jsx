@@ -20,43 +20,64 @@ export const WatchStreamView = () => {
   } = useSecurity();
 
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
+  const [mediaStream, setMediaStream] = useState(null);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
 
   // Direct Attached Camera (getUserMedia)
   useEffect(() => {
-    let stream = null;
-    const currentVideoEl = videoRef.current;
+    let localStream = null;
+    let isCancelled = false;
 
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
-        .then((s) => {
-          stream = s;
-          if (currentVideoEl) {
-            currentVideoEl.srcObject = s;
-            currentVideoEl.play().catch(() => {});
-          }
-          setHasCameraAccess(true);
-        })
-        .catch((err) => {
-          console.info('Direct camera stream info:', err?.message || err);
-          setHasCameraAccess(false);
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn('getUserMedia is not supported by this browser');
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user',
+          },
+          audio: false,
         });
+
+        if (isCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        localStream = stream;
+        setMediaStream(stream);
+        setHasCameraAccess(true);
+      } catch (err) {
+        console.info('Direct camera stream notice:', err?.message || err);
+        setHasCameraAccess(false);
+      }
     }
 
+    startCamera();
+
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
-      if (currentVideoEl && currentVideoEl.srcObject) {
-        const tracks = currentVideoEl.srcObject.getTracks();
-        tracks.forEach((t) => t.stop());
-        currentVideoEl.srcObject = null;
+      isCancelled = true;
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
       }
     };
   }, []);
+
+  // Guarantee that whenever mediaStream changes, videoRef has srcObject attached and plays
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && mediaStream) {
+      video.srcObject = mediaStream;
+      video.play().catch((e) => console.warn('Webcam play error:', e));
+    }
+  }, [mediaStream]);
 
   const handleDismissAlert = () => {
     dismissAlert();
@@ -90,31 +111,21 @@ export const WatchStreamView = () => {
 
   return (
     <div className="watch-stream-view" ref={containerRef}>
-        {/* Big Surveillance Screen */}
+      {/* Big Surveillance Screen */}
       <div className={`dedicated-stream-container ${activeAlert ? 'alert-active' : ''}`}>
-        {backendStatus?.online ? (
-          <img
-            src={`${backendStatus.url}/api/stream/cam1`}
-            alt="Backend Camera Stream"
-            className="dedicated-stream-media backend-mjpeg-stream"
-          />
-        ) : hasCameraAccess ? (
-          <video
-            ref={videoRef}
-            className="dedicated-stream-media"
-            autoPlay
-            playsInline
-            muted
-          />
-        ) : (
+        {/* Single persistent Video Element — always mounted so stream never detaches */}
+        <video
+          ref={videoRef}
+          className="dedicated-stream-media"
+          autoPlay
+          playsInline
+          muted
+          style={{ display: hasCameraAccess ? 'block' : 'none' }}
+        />
+
+        {/* Fallback backdrop while camera is connecting or when camera is offline */}
+        {!hasCameraAccess && (
           <div className="dedicated-poster-viewport direct-camera-backdrop">
-            <video
-              ref={videoRef}
-              className="dedicated-stream-media direct-hidden-video"
-              autoPlay
-              playsInline
-              muted
-            />
             <img
               src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85"
               alt="Direct Attached System Camera"

@@ -1,89 +1,58 @@
-# ImmunoAI — Deep Learning Backend & Model Training Guide
+# ImmunoAI Backend Architecture
 
-This directory contains the complete PyTorch Deep Learning pipeline, dataset preprocessor, and FastAPI backend server for the **ImmunoAI Intruder Detection System** term project.
+This backend architecture is cleanly separated into two distinct layers:
+
+1. **Node.js Express Server (`server.js`)**:
+   - Manages UI communication, REST endpoints, and WebSocket alerts.
+   - Takes webcam footage base64 strings from the React UI (`POST /api/detect`).
+   - Forwards the string to the Python AI service on port 5000.
+   - Broadcasts real-time intruder alerts to the frontend via WebSockets.
+   - Statically serves saved intruder snapshots at `/snapshots`.
+   - **Note**: You do not have to explain this Node.js server in your deep learning viva.
+
+2. **Python Deep Learning Service (`ai_service/`)**:
+   - **This is what you explain in your viva! Organized into 4 clear folders:**
+   - **`data/`**: Raw training and validation image sets.
+   - **`saved_model/`**: Best trained PyTorch weights (`immunoai_model.pth`) and evaluation plots (`evaluation_curves.png`).
+   - **`training_model/`**: Contains [`model.py`](ai_service/training_model/model.py) (CNN architecture), [`dataset.py`](ai_service/training_model/dataset.py), [`train.py`](ai_service/training_model/train.py), and [`colab_training_notebook.py`](ai_service/training_model/colab_training_notebook.py).
+   - **`mini_server/`**: Contains [`predictor.py`](ai_service/mini_server/predictor.py) (isolated prediction engine) and [`server.py`](ai_service/mini_server/server.py) (mini HTTP bridge to Node.js).
+   - [`ai_service/README_VIVA.md`](ai_service/README_VIVA.md): Complete viva cheat-sheet with architecture diagrams, equations, and talking points.
 
 ---
 
-## 1. Environment & Setup (Anaconda `utility` Environment)
+## How to Run Everything
 
-As requested, this project runs strictly inside your existing Anaconda **`utility`** environment to protect your Linux system Python.
-
-To activate the environment:
+### Step 1: Start the Python Deep Learning Mini Server
+Open a terminal:
 ```bash
+cd ~/Desktop/IDL\ Code/server/ai_service/mini_server
 conda activate utility
+python server.py
 ```
+*Outputs: `ImmunoAI Mini Server Online at http://127.0.0.1:5001`*
 
----
-
-## 2. Dataset Setup (When Your Data is Downloaded)
-
-When you download your Kaggle or custom dataset, place the images into the `server/data/` directory.
-
-### Recommended Structure:
-```
-server/data/
-├── train/
-│   ├── normal/       # CCTV frames of empty rooms, background, pets
-│   └── intruder/     # CCTV frames containing people / intruders
-└── val/
-    ├── normal/
-    └── intruder/
-```
-
-> **Note**: Even if your dataset is a single folder with `normal/` and `intruder/` subfolders without `train`/`val` split, `dataset.py` automatically splits it **80% training / 20% validation** for you!
-
----
-
-## 3. Training Your Model (`train.py`)
-
-Once your dataset is placed in `server/data/`, run:
-
+### Step 2: Start the Node.js Backend Server
+Open a second terminal:
 ```bash
-cd server
-python train.py --epochs 15 --batch-size 32 --lr 0.001
+cd ~/Desktop/IDL\ Code/server
+npm start
 ```
+*Outputs: `ImmunoAI Node.js Server Online on http://localhost:8000`*
 
-### What happens during training:
-1. **Data Augmentation**: Images are randomly flipped horizontally, rotated ($\pm 10^\circ$), and color-jittered to handle camera angles and night/day lighting variations.
-2. **Loss Function**: Evaluated using **Binary Cross-Entropy with Logits (`BCEWithLogitsLoss`)**.
-3. **Optimization**: Updated with **Adam Optimizer** and a learning rate scheduler (`ReduceLROnPlateau`).
-4. **Best Weights**: Automatically saved to `server/weights/immunoai_model.pth`.
-5. **Viva Graphs**: Exports high-resolution **`evaluation_curves.png`** (Loss & Accuracy curves) for your presentation slides!
-
----
-
-## 4. Running the Backend Server (`main.py`)
-
-To start the FastAPI live server:
-
+### Step 3: Start the React Frontend
+Open a third terminal:
 ```bash
-cd server
-python main.py
+cd ~/Desktop/IDL\ Code/client
+npm run dev
 ```
-*(Or `uvicorn main:app --reload --port 8000`)*
-
-- **Interactive API Docs (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Live Video Stream**: [http://localhost:8000/api/stream/cam1](http://localhost:8000/api/stream/cam1)
-- **WebSocket Alerts**: `ws://localhost:8000/ws/alerts`
-
-The React frontend automatically connects to `http://localhost:8000` and displays real-time alerts whenever an intruder is detected while **Protection Mode** is ARMED.
+Open `http://localhost:5173` in your browser.
 
 ---
 
-## 5. Viva Defense Cheat-Sheet (For Mohsin, Anam & Maliha)
+## How Google Colab Training Works
 
-### Q1: "Describe your CNN architecture and why you designed it this way."
-- **Answer**: 
-  *"We designed `ImmunoAICNN`, a 4-block hierarchical Deep CNN in PyTorch:*
-  - *Early blocks (Conv 1–2 with 32 and 64 filters) extract low-level edges and textures.*
-  - *Deeper blocks (Conv 3–4 with 128 and 256 filters) capture high-level human contours and silhouettes.*
-  - *We used Batch Normalization after every convolution to stabilize internal covariate shift and accelerate convergence.*
-  - *Instead of heavy dense layers, we used **Global Adaptive Average Pooling (1x1)** followed by a regularized linear head with **Dropout (p=0.4)** to prevent overfitting, resulting in 405,409 trainable parameters that run at 30+ FPS in real time."*
-
-### Q2: "Why Binary Cross-Entropy with Logits Loss?"
-- **Answer**: 
-  *"Because `BCEWithLogitsLoss` combines the Sigmoid activation and standard Cross-Entropy using the log-sum-exp trick. This provides numerical stability and prevents vanishing or exploding gradients when probabilities approach 0 or 1."*
-
-### Q3: "How does the system distinguish between normal activity and an intrusion?"
-- **Answer**: 
-  *"Through our **Protection Mode gating state**: when Standby, the camera runs normal surveillance preview. When ARMED, every incoming frame passes through our PyTorch inference pipeline. If probability $P(\text{Intruder}) \ge 0.70$, the backend saves a timestamped snapshot to disk, logs it into SQLite, and broadcasts a zero-latency alert over WebSockets to trigger the siren and UI notification."*
+1. Run the code in [`server/ai_service/training_model/colab_training_notebook.py`](ai_service/training_model/colab_training_notebook.py) in Google Colab on a free T4 GPU.
+2. Colab trains the model on the full Kaggle dataset in ~2-3 minutes.
+3. Download `immunoai_model.pth` and `evaluation_curves.png` from Colab.
+4. Replace the files in [`server/ai_service/saved_model/`](ai_service/saved_model/) with the downloaded ones.
+5. Done! The mini-server automatically uses the new weights without changing any code.

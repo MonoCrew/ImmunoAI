@@ -4,7 +4,8 @@ Trains ImmunoAICNN on the dataset, tracks metrics, and exports loss curves and w
 
 Run with:
   conda activate utility
-  python server/train.py --data-dir server/data --epochs 15 --batch-size 32
+  cd server/ai_service/training_model
+  python train.py --epochs 25 --batch-size 32
 """
 
 import argparse
@@ -16,16 +17,22 @@ import matplotlib.pyplot as plt
 
 from model import ImmunoAICNN
 from dataset import create_dataloaders
-from config import MODEL_WEIGHTS_PATH, MODELS_DIR
+
+# Self-contained paths pointing to ai_service/data and ai_service/saved_model
+BASE_DIR = Path(__file__).resolve().parent
+SAVED_MODEL_DIR = BASE_DIR.parent / "saved_model"
+SAVED_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_DATA_DIR = BASE_DIR.parent / "data"
+DEFAULT_WEIGHTS_PATH = SAVED_MODEL_DIR / "immunoai_model.pth"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train ImmunoAI Deep CNN for Intruder Detection")
-    parser.add_argument("--data-dir", type=str, default="server/data", help="Path to dataset directory")
+    parser.add_argument("--data-dir", type=str, default=str(DEFAULT_DATA_DIR), help="Path to dataset directory")
     parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for Adam optimizer")
-    parser.add_argument("--output-weights", type=str, default=str(MODEL_WEIGHTS_PATH), help="Path to save best weights")
+    parser.add_argument("--output-weights", type=str, default=str(DEFAULT_WEIGHTS_PATH), help="Path to save best weights")
     return parser.parse_args()
 
 
@@ -60,9 +67,7 @@ def validate(model, dataloader, criterion, device):
     running_loss = 0.0
     correct = 0
     total = 0
-
-    all_preds = []
-    all_targets = []
+    all_preds, all_targets = [], []
 
     with torch.no_grad():
         for images, labels in dataloader:
@@ -77,62 +82,57 @@ def validate(model, dataloader, criterion, device):
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
 
-            all_preds.extend(predictions.cpu().squeeze().tolist())
-            all_targets.extend(labels.cpu().squeeze().tolist())
+            all_preds.extend(predictions.cpu().numpy().flatten())
+            all_targets.extend(labels.cpu().numpy().flatten())
 
-    epoch_loss = running_loss / total
-    epoch_acc = (correct / total) * 100.0
-    return epoch_loss, epoch_acc, all_preds, all_targets
+    val_loss = running_loss / total
+    val_acc = (correct / total) * 100.0
+    return val_loss, val_acc, all_preds, all_targets
 
 
 def plot_metrics(train_losses, val_losses, train_accs, val_accs, output_dir: Path):
-    """
-    Exports high-resolution training/validation curves for Viva presentation.
-    """
-    epochs_range = range(1, len(train_losses) + 1)
+    """Generates and saves the loss and accuracy evaluation curves"""
+    epochs = range(1, len(train_losses) + 1)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Loss Curves
-    ax1.plot(epochs_range, train_losses, label="Train Loss", color="#E88338", linewidth=2)
-    ax1.plot(epochs_range, val_losses, label="Val Loss", color="#3B82F6", linewidth=2, linestyle="--")
-    ax1.set_title("Training vs Validation Loss (Binary Cross-Entropy)", fontsize=13, fontweight="bold")
-    ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Loss")
-    ax1.grid(True, alpha=0.3)
+    # Loss plot
+    ax1.plot(epochs, train_losses, 'o-', color='#E88338', label='Training Loss', linewidth=2)
+    ax1.plot(epochs, val_losses, 's--', color='#22C55E', label='Validation Loss', linewidth=2)
+    ax1.set_title('ImmunoAI — Binary Cross Entropy Loss', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('Epochs')
+    ax1.set_ylabel('Loss')
+    ax1.grid(True, linestyle=':', alpha=0.6)
     ax1.legend()
 
-    # Accuracy Curves
-    ax2.plot(epochs_range, train_accs, label="Train Accuracy", color="#22C55E", linewidth=2)
-    ax2.plot(epochs_range, val_accs, label="Val Accuracy", color="#6366F1", linewidth=2, linestyle="--")
-    ax2.set_title("Training vs Validation Accuracy (%)", fontsize=13, fontweight="bold")
-    ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("Accuracy (%)")
-    ax2.grid(True, alpha=0.3)
+    # Accuracy plot
+    ax2.plot(epochs, train_accs, 'o-', color='#3B82F6', label='Training Accuracy (%)', linewidth=2)
+    ax2.plot(epochs, val_accs, 's--', color='#10B981', label='Validation Accuracy (%)', linewidth=2)
+    ax2.set_title('ImmunoAI — Detection Accuracy (%)', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Epochs')
+    ax2.set_ylabel('Accuracy (%)')
+    ax2.set_ylim([0, 105])
+    ax2.grid(True, linestyle=':', alpha=0.6)
     ax2.legend()
 
     plt.tight_layout()
-    chart_path = output_dir / "evaluation_curves.png"
-    plt.savefig(chart_path, dpi=300)
+    curve_path = output_dir / "evaluation_curves.png"
+    plt.savefig(str(curve_path), dpi=200)
     plt.close()
-    print(f"[ImmunoAI] Saved evaluation curves to: {chart_path}")
+    print(f"[ImmunoAI] Saved evaluation curves to: {curve_path.resolve()}")
 
 
 def main():
     args = parse_args()
-    data_dir = Path(args.data_dir)
-
     print("=" * 60)
     print(" ImmunoAI — Intruder Detection Deep CNN Trainer")
     print("=" * 60)
 
-    if not data_dir.exists() or not any(data_dir.iterdir()):
-        print(f"\n[Error] Dataset directory '{data_dir}' is empty or does not exist!")
+    data_dir = Path(args.data_dir)
+    if not data_dir.exists():
+        print(f"[Error] Dataset directory '{data_dir.resolve()}' not found.")
         print("Please extract your dataset into:")
         print(f"  {data_dir.resolve()}/train/normal")
         print(f"  {data_dir.resolve()}/train/intruder")
-        print("\nOnce you extract your dataset, re-run this command:")
-        print(f"  conda activate utility")
-        print(f"  python server/train.py --data-dir {args.data_dir}\n")
         return
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -204,8 +204,8 @@ def main():
     print(f" Best Weights Saved to: {output_weights.resolve()}")
     print("=" * 60)
 
-    # Plot & Save Evaluation Curves
-    plot_metrics(train_losses, val_losses, train_accs, val_accs, MODELS_DIR)
+    # Plot & Save Evaluation Curves to saved_model/
+    plot_metrics(train_losses, val_losses, train_accs, val_accs, output_weights.parent)
 
 
 if __name__ == "__main__":

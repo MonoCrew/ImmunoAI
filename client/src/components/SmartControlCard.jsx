@@ -2,14 +2,17 @@ import {
   Volume2,
   VolumeX,
   Wifi,
+  WifiOff,
   Activity,
   Thermometer,
   ChevronLeft,
   ChevronRight,
   Snowflake,
-  CheckCircle2
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
+import { useNetworkStatus } from '../services/networkService';
 
 // Card 2: Sound (Alarm siren toggle)
 export const SoundCard = () => {
@@ -54,60 +57,107 @@ export const SoundCard = () => {
   );
 };
 
-// Card 3: Wi-Fi Status (Static display - NO BUTTON per user requirement)
+// Card 3: Real Wi-Fi Status (Live telemetry - NO BUTTON)
 export const WifiStatusCard = () => {
+  const network = useNetworkStatus();
+  const isOnline = network.isOnline;
+
   return (
-    <div className="smart-card static-info-card" title="Wi-Fi Connection Status (Telemetry Only)">
+    <div
+      className={`smart-card static-info-card ${!isOnline ? 'is-offline' : ''}`}
+      title={isOnline ? 'Live Wi-Fi Telemetry' : 'Wi-Fi Disconnected'}
+    >
       <div className="card-top-row">
         <div className="card-icon-title">
-          <Wifi size={18} className="card-icon text-green" />
+          {isOnline ? (
+            <Wifi size={18} className="card-icon text-green" />
+          ) : (
+            <WifiOff size={18} className="card-icon text-muted" />
+          )}
         </div>
-        <span className="status-tag active flex-center gap-1">
-          <CheckCircle2 size={11} />
-          <span>Connected</span>
+        <span className={`status-tag ${isOnline ? 'active' : ''} flex-center gap-1`}>
+          {isOnline ? (
+            <>
+              <CheckCircle2 size={11} />
+              <span>Connected</span>
+            </>
+          ) : (
+            <>
+              <XCircle size={11} />
+              <span>Offline</span>
+            </>
+          )}
         </span>
       </div>
 
       <div className="card-main-info">
         <div className="card-device-name">Wi-Fi Status</div>
-        <div className="card-subtext">ImmunoNet-5GHz (Strong)</div>
+        <div className="card-subtext">
+          {isOnline
+            ? `Online • ${network.rtt}ms latency`
+            : 'Wi-Fi Off • Disconnected'}
+        </div>
       </div>
 
-      {/* Static Visual Indicator - NO BUTTON */}
+      {/* Real Dynamic Signal Bars */}
       <div className="card-bottom-static-indicator">
         <div className="signal-bars-indicator">
-          <span className="sig-bar bar-1 active"></span>
-          <span className="sig-bar bar-2 active"></span>
-          <span className="sig-bar bar-3 active"></span>
-          <span className="sig-bar bar-4 active"></span>
+          <span className={`sig-bar bar-1 ${isOnline && network.signalBars >= 1 ? 'active' : ''}`}></span>
+          <span className={`sig-bar bar-2 ${isOnline && network.signalBars >= 2 ? 'active' : ''}`}></span>
+          <span className={`sig-bar bar-3 ${isOnline && network.signalBars >= 3 ? 'active' : ''}`}></span>
+          <span className={`sig-bar bar-4 ${isOnline && network.signalBars >= 4 ? 'active' : ''}`}></span>
         </div>
-        <span className="static-pill-badge">-42 dBm • Optimal</span>
+        <span className="static-pill-badge">
+          {isOnline ? `${network.signalDbm} dBm • Strong` : '0 dBm • Inactive'}
+        </span>
       </div>
     </div>
   );
 };
 
-// Card 4: Wi-Fi Speed (Telemetry telemetry display)
+// Card 4: Real Wi-Fi Speed & Latency (Hidden completely when Wi-Fi is OFF)
 export const WifiSpeedCard = () => {
+  const network = useNetworkStatus();
+  const isOnline = network.isOnline;
+
   return (
-    <div className="smart-card static-info-card" title="Real-Time Network Bandwidth for Video Stream">
+    <div
+      className={`smart-card static-info-card ${!isOnline ? 'is-offline' : ''}`}
+      title="Real-Time Network Bandwidth & Latency"
+    >
       <div className="card-top-row">
         <div className="card-icon-title">
-          <Activity size={18} className="card-icon text-orange" />
+          <Activity size={18} className={`card-icon ${isOnline ? 'text-orange' : 'text-muted'}`} />
         </div>
-        <span className="status-tag active">120 Mbps</span>
+        {/* Only show speed badge when Wi-Fi is connected */}
+        {isOnline ? (
+          <span className="status-tag active">{network.downlink} Mbps</span>
+        ) : (
+          <span className="status-tag">Off</span>
+        )}
       </div>
 
       <div className="card-main-info">
         <div className="card-device-name">Wi-Fi Speed</div>
-        <div className="card-subtext">Latency: 14ms • Low Jitter</div>
+        <div className="card-subtext">
+          {/* Hide latency details when Wi-Fi is off */}
+          {isOnline
+            ? `Latency: ${network.rtt}ms • Low Jitter`
+            : 'Wi-Fi Off • Telemetry Paused'}
+        </div>
       </div>
 
-      {/* Speed Data Metric */}
-      <div className="card-bottom-telemetry">
-        <span className="speed-pill download">↓ 120.4 Mbps</span>
-        <span className="speed-pill upload">↑ 42.1 Mbps</span>
-      </div>
+      {/* Speed Metrics: Only rendered when Wi-Fi is ON */}
+      {isOnline ? (
+        <div className="card-bottom-telemetry">
+          <span className="speed-pill download">↓ {network.downlink} Mbps</span>
+          <span className="speed-pill upload">↑ {(network.downlink * 0.35).toFixed(1)} Mbps</span>
+        </div>
+      ) : (
+        <div className="card-bottom-telemetry offline-notice">
+          <span className="offline-pill">No Network Activity</span>
+        </div>
+      )}
     </div>
   );
 };

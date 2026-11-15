@@ -1,0 +1,298 @@
+/**
+ * ImmunoAI — Node.js Backend Server & WebSocket Alert Hub
+ *
+ * Responsibilities:
+ * 1. Serves REST API for React Frontend (Protection mode toggle, health check, snapshots).
+ * 2. Receives video frame base64 strings from the UI (`/api/detect`).
+ * 3. Forwards frames to the Python AI service (http://127.0.0.1:5000/predict).
+ * 4. Broadcasts real-time intruder alerts to all connected React clients via WebSockets.
+ * 5. Statically serves captured intruder snapshots (/snapshots).
+ */
+
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+const { WebSocketServer, WebSocket } = require('ws');
+
+const app = express();
+const server = http.createServer(app);
+
+const PORT = process.env.PORT || 8000;
+const PYTHON_AI_URL = process.env.PYTHON_AI_URL || 'http://127.0.0.1:5001';
+
+// Ensure snapshots directory exists
+const SNAPSHOTS_DIR = path.join(__dirname, 'snapshots');
+if (!fs.existsSync(SNAPSHOTS_DIR)) {
+  fs.mkdirSync(SNAPSHOTS_DIR, { recursive: true });
+}
+
+// Global System State
+let protectionMode = false; // Kept OFF / Standby by default
+const confidenceThreshold = 0.50; // Standard 50% decision boundary for BCEWithLogitsLoss
+
+// 5 Continuous Frames & 10s Cooldown State Tracking
+let consecutiveIntruderFrames = 0;
+let cooldownUntil = 0;
+const REQUIRED_CONSECUTIVE_FRAMES = 5;
+const COOLDOWN_DURATION_MS = 10000; // 10 seconds cooldown between snapshots
+
+// Real incidents gallery (starts 100% empty; filled ONLY by live camera captures)
+const incidents = [];
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve saved intruder snapshots statically
+app.use('/snapshots', express.static(SNAPSHOTS_DIR));
+
+// -------------------------------------------------------------------
+// WEBSOCKET SERVER (Instant alert broadcast to React UI)
+// -------------------------------------------------------------------
+const wss = new WebSocketServer({ server, path: '/ws/alerts' });
+
+function broadcast(data) {
+  const payload = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+}
+
+wss.on('connection', (ws) => {
+  console.log(`[WebSocket] React UI connected! Active clients: ${wss.clients.size}`);
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      if (data.type === 'PING') {
+        ws.send(JSON.stringify({ type: 'PONG' }));
+      }
+    } catch {
+      // Ignore non-JSON messages
+    }
+  });
+
+  ws.on('close', () => {
+    console.log(`[WebSocket] Client disconnected. Active clients: ${wss.clients.size}`);
+  });
+});
+
+// -------------------------------------------------------------------
+// REST API ROUTES
+// -------------------------------------------------------------------
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  let aiServiceOnline = false;
+  try {
+    const response = await fetch(`${PYTHON_AI_URL}/health`, { signal: AbortSignal.timeout(1500) });
+    if (response.ok) {
+      aiServiceOnline = true;
+    }
+  } catch {
+    aiServiceOnline = false;
+  }
+
+  res.json({
+    status: 'healthy',
+    backend: 'Node.js Express Hub',
+    model: 'ImmunoAICNN (PyTorch)',
+    ai_service_online: aiServiceOnline,
+    ai_service_url: PYTHON_AI_URL,
+    protection_mode: protectionMode,
+  });
+});
+
+// System Status endpoint
+app.get('/api/status', (req, res) => {
+  res.json({
+    protection_mode: protectionMode,
+    confidence_threshold: confidenceThreshold,
+    active_camera: 'cam1',
+    fps: 30,
+    model: 'ImmunoAICNN (PyTorch)',
+  });
+});
+
+// Protection Mode Toggle endpoint
+app.post('/api/protection-mode', (req, res) => {
+  const { enabled } = req.body;
+  protectionMode = Boolean(enabled);
+  const statusText = protectionMode ? 'ARMED' : 'STANDBY';
+  console.log(`[System] Protection Mode toggled: ${statusText}`);
+
+  broadcast({
+    type: 'PROTECTION_MODE_CHANGED',
+    enabled: protectionMode,
+    status: statusText,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  });
+
+  res.json({
+    success: true,
+    protection_mode: protectionMode,
+    message: `Security System is now ${statusText}`,
+  });
+});
+
+// Get captured intruder snapshots
+app.get('/api/intruders/snapshots', (req, res) => {
+  res.json(incidents);
+});
+
+// Detection endpoint: UI sends base64 frame string here
+app.post('/api/detect', async (req, res) => {
+  const { image } = req.body;
+
+  if (!image) {
+    return res.status(400).json({ error: 'No image base64 string provided' });
+  }
+
+  // If protection mode is OFF, do not run inference to save resources
+  if (!protectionMode) {
+    return res.json({
+      status: 'standby',
+      is_intruder: false,
+      message: 'Protection Mode is in STANDBY',
+    });
+  }
+
+  try {
+    // Save latest camera frame to disk for instant inspection & verification
+    try {
+      const cleanBase64 = image.includes(',') ? image.split(',')[1] : image;
+      fs.writeFileSync(path.join(SNAPSHOTS_DIR, 'latest_stream_frame.jpg'), Buffer.from(cleanBase64, 'base64'));
+    } catch {
+      // Ignore disk sync glitch
+    }
+
+    // Forward the image string to the Python AI service
+    const pyResponse = await fetch(`${PYTHON_AI_URL}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image,
+        threshold: confidenceThreshold,
+      }),
+      signal: AbortSignal.timeout(3500),
+    });
+
+    if (!pyResponse.ok) {
+      throw new Error(`Python server returned status ${pyResponse.status}`);
+    }
+
+    const result = await pyResponse.json();
+
+    const now = Date.now();
+    const isInCooldown = now < cooldownUntil;
+    let alertTriggered = false;
+    let newIncident = null;
+
+    // Temporal Smoothing: Intruder must persist across 5 CONTINUOUS frames
+    if (result.is_intruder) {
+      if (!isInCooldown) {
+        consecutiveIntruderFrames += 1;
+        console.log(`[Detection] 👤 Positive Frame: ${consecutiveIntruderFrames}/${REQUIRED_CONSECUTIVE_FRAMES} (Confidence: ${result.confidence}%)`);
+
+        // Trigger Intruder Incident ONLY when 5 continuous frames are reached
+        if (consecutiveIntruderFrames >= REQUIRED_CONSECUTIVE_FRAMES) {
+          alertTriggered = true;
+          cooldownUntil = now + COOLDOWN_DURATION_MS; // Start 10 seconds cooldown
+          consecutiveIntruderFrames = 0; // Reset counter after confirmation
+
+          const timestampStr = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          const snapshotFilename = `snap_${now}.jpg`;
+
+          // Save actual intruder snapshot from the verified 5th frame
+          try {
+            const cleanBase64 = image.includes(',') ? image.split(',')[1] : image;
+            fs.writeFileSync(path.join(SNAPSHOTS_DIR, snapshotFilename), Buffer.from(cleanBase64, 'base64'));
+          } catch (saveErr) {
+            console.error('[Snapshot Save Error]', saveErr);
+          }
+
+          const imageUrl = `http://localhost:${PORT}/snapshots/${snapshotFilename}`;
+
+          newIncident = {
+            id: `snap-${now}`,
+            timestamp: timestampStr,
+            camera: 'Attached System Camera',
+            confidence: `${result.confidence}%`,
+            threatLevel: 'High Alert',
+            image: imageUrl,
+            details: `Intruder confirmed after 5 continuous frames (${result.confidence}% confidence).`,
+            box: result.box || [30, 20, 35, 60],
+          };
+
+          incidents.unshift(newIncident);
+
+          // Broadcast alert to React dashboard via WebSocket
+          broadcast({
+            type: 'INTRUDER_DETECTED',
+            id: newIncident.id,
+            confidence: result.confidence,
+            box: newIncident.box,
+            imageUrl: newIncident.image,
+            threatLevel: newIncident.threatLevel,
+            timestamp: timestampStr,
+            message: `🚨 Intruder Confirmed (${result.confidence}%)`,
+          });
+
+          console.log(`\n🚨 [ALERT BROADCAST] INTRUDER CONFIRMED (5/5 continuous frames, ${result.confidence}%)!`);
+          console.log(`⏱️ [COOLDOWN] Snapshot cooldown active for next 10 seconds.\n`);
+        }
+      } else {
+        const remainingSec = Math.ceil((cooldownUntil - now) / 1000);
+        console.log(`[Cooldown Active] Intruder detected, but snapshot paused (${remainingSec}s left).`);
+      }
+    } else {
+      // If a frame is normal, reset continuous counter to eliminate false flickers
+      if (consecutiveIntruderFrames > 0) {
+        console.log(`[Detection] ✅ Feed returned to normal. Reset count (was ${consecutiveIntruderFrames}/${REQUIRED_CONSECUTIVE_FRAMES})`);
+      }
+      consecutiveIntruderFrames = 0;
+    }
+
+    return res.json({
+      success: true,
+      ...result,
+      consecutive_frames: consecutiveIntruderFrames,
+      required_frames: REQUIRED_CONSECUTIVE_FRAMES,
+      alert_triggered: alertTriggered,
+      in_cooldown: isInCooldown,
+      cooldown_remaining_seconds: isInCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0,
+      new_incident: newIncident,
+    });
+  } catch (err) {
+    // Graceful fallback when Python DL mini server hasn't been started yet
+    if (!global.lastAiWarnTime || Date.now() - global.lastAiWarnTime > 20000) {
+      console.warn(`[Node.js Notice] Python AI server (port 5001) not responding. Run: cd server/ai_service/mini_server && python server.py`);
+      global.lastAiWarnTime = Date.now();
+    }
+    return res.json({
+      success: false,
+      ai_service_online: false,
+      is_intruder: false,
+      message: 'Python Deep Learning server is offline on port 5001. Start it with: cd server/ai_service/mini_server && python server.py',
+    });
+  }
+});
+
+// Dedicated low-latency ping endpoint for accurate UI Wi-Fi telemetry
+app.get('/api/ping', (req, res) => {
+  res.json({ pong: true, time: Date.now() });
+});
+
+// Start Server
+server.listen(PORT, () => {
+  console.log('\n========================================================');
+  console.log(` ImmunoAI Node.js Server Online on http://localhost:${PORT}`);
+  console.log(` Forwarding AI Predictions to Python on: ${PYTHON_AI_URL}`);
+  console.log(` WebSocket Alerts ready at: ws://localhost:${PORT}/ws/alerts`);
+  console.log('========================================================\n');
+});

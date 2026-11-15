@@ -1829,6 +1829,16 @@
   border: 1px solid var(--border-color);
 }
 
+.offline-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  border: 1px dashed var(--border-color);
+}
+
 /* -------------------------------------------------------------
    CARD 5: WEATHER CARD & 5-DAY FORECAST (INDEXEDDB CACHED)
    ------------------------------------------------------------- */

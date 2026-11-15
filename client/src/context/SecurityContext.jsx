@@ -3,6 +3,7 @@ import {
   apiSetProtectionMode,
   checkBackendHealth,
   createAlertWebSocket,
+  apiGetSnapshots,
   API_BASE_URL
 } from '../services/api';
 import {
@@ -70,49 +71,8 @@ export const SecurityProvider = ({ children }) => {
   // Video feed source: direct camera
   const [streamSource, setStreamSource] = useState('direct');
 
-  // Captured Intruders Snapshot Gallery (Fetched from server / local placeholders)
-  const [capturedIntruders, setCapturedIntruders] = useState([
-    {
-      id: 'snap-1',
-      timestamp: 'Today, 10:14 PM',
-      camera: 'Attached System Camera',
-      confidence: '98.4%',
-      threatLevel: 'High Alert',
-      image: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=600&auto=format&fit=crop&q=80',
-      details: 'Unauthorized motion detected near main entrance while Protection Mode was ARMED.',
-      box: [32, 22, 34, 58],
-    },
-    {
-      id: 'snap-2',
-      timestamp: 'Today, 08:35 PM',
-      camera: 'Attached System Camera',
-      confidence: '96.2%',
-      threatLevel: 'Breach Detected',
-      image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80',
-      details: 'Person detected within perimeter zone during armed surveillance hours.',
-      box: [28, 18, 38, 65],
-    },
-    {
-      id: 'snap-3',
-      timestamp: 'Yesterday, 11:42 PM',
-      camera: 'Attached System Camera',
-      confidence: '94.8%',
-      threatLevel: 'High Alert',
-      image: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=600&auto=format&fit=crop&q=80',
-      details: 'Night breach detected. Infrared frame verified with YOLOv8 inference.',
-      box: [35, 25, 30, 52],
-    },
-    {
-      id: 'snap-4',
-      timestamp: 'Yesterday, 09:15 PM',
-      camera: 'Attached System Camera',
-      confidence: '97.5%',
-      threatLevel: 'Breach Detected',
-      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
-      details: 'Perimeter line-crossing event triggered audio siren.',
-      box: [24, 20, 36, 60],
-    },
-  ]);
+  // Real Captured Intruders Snapshot Gallery (Starts 100% empty, populated only by real camera captures)
+  const [capturedIntruders, setCapturedIntruders] = useState([]);
 
   // Backend connection status
   const [backendStatus, setBackendStatus] = useState({
@@ -278,8 +238,12 @@ export const SecurityProvider = ({ children }) => {
           checking: false,
           url: API_BASE_URL,
           fps: res.data?.fps || 30,
-          model: res.data?.model || 'YOLOv8-Intruder (PyTorch)',
+          model: res.data?.model || 'ImmunoAICNN (PyTorch)',
         });
+        const snaps = await apiGetSnapshots();
+        if (mounted && Array.isArray(snaps)) {
+          setCapturedIntruders(snaps);
+        }
       } else {
         setBackendStatus((prev) => ({
           ...prev,
