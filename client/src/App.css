@@ -23,33 +23,63 @@
 }
 
 /* -------------------------------------------------------------
-   LEFT SIDEBAR
+   LEFT SIDEBAR (EXPANDABLE / COLLAPSIBLE)
    ------------------------------------------------------------- */
 .app-sidebar {
-  width: 78px;
   background-color: var(--bg-card);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0;
-  gap: 28px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   height: 100vh;
+  transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1), padding 0.24s ease;
+  z-index: 40;
+  box-sizing: border-box;
 }
 
-.sidebar-logo {
-  cursor: pointer;
+.app-sidebar.is-collapsed {
+  width: 78px;
+  padding: 20px 10px;
+}
+
+.app-sidebar.is-expanded {
+  width: 230px;
+  padding: 20px 16px;
+}
+
+/* Sidebar Top Header with Brand & Collapse Button */
+.sidebar-top-header {
   display: flex;
   align-items: center;
+  width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.is-collapsed .sidebar-top-header {
+  flex-direction: column;
   justify-content: center;
+  gap: 12px;
+}
+
+.is-expanded .sidebar-top-header {
+  justify-content: space-between;
+}
+
+.sidebar-brand-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .logo-ring {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: 2px solid var(--border-color);
   display: flex;
@@ -60,6 +90,7 @@
   background: var(--bg-card);
   padding: 3px;
   box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
 }
 
 .logo-ring.armed {
@@ -81,48 +112,118 @@
   object-fit: cover;
 }
 
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar-brand-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.sidebar-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.2px;
+}
+
+.sidebar-collapse-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Sidebar Navigation Items */
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   flex: 1;
+  width: 100%;
+  margin-top: 14px;
 }
 
 .nav-btn {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.nav-btn.expanded-btn {
+  width: 100%;
+  height: 44px;
+  justify-content: flex-start;
+  padding: 0 14px;
+  gap: 12px;
+}
+
+.nav-icon {
+  flex-shrink: 0;
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-btn:hover {
   background-color: var(--bg-subtle);
   color: var(--text-primary);
-  transform: translateY(-1px);
+  transform: translateX(2px);
 }
 
 .nav-btn.active {
   background-color: var(--accent-orange);
   color: #FFFFFF;
-  box-shadow: 0 6px 16px var(--accent-orange-glow);
+  box-shadow: 0 4px 14px var(--accent-orange-glow);
 }
 
 .sidebar-footer {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .footer-btn {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .footer-btn:hover {
   color: var(--text-primary);
+}
+
+.logout-btn:hover {
+  color: var(--status-red);
 }
 
 /* -------------------------------------------------------------
@@ -1765,4 +1866,221 @@
   font-weight: 800;
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+/* -------------------------------------------------------------
+   WATCH STREAM VIEW (DEDICATED FULL SURVEILLANCE & MODEL TELEMETRY)
+   ------------------------------------------------------------- */
+.watch-stream-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  flex: 1;
+}
+
+.dedicated-stream-container {
+  width: 100%;
+  height: calc(100vh - 210px);
+  min-height: 480px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  position: relative;
+  background-color: #0B0D11;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+  border: 2px solid transparent;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dedicated-stream-container.alert-active {
+  border-color: var(--status-red);
+  box-shadow: 0 0 30px var(--status-red-glow);
+  animation: alarm-flash 1s infinite alternate;
+}
+
+.dedicated-poster-viewport {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.dedicated-stream-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.fullscreen-pill {
+  width: 28px !important;
+  height: 28px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #1F2421 !important;
+}
+
+.dark-theme .fullscreen-pill {
+  background: rgba(24, 27, 34, 0.85) !important;
+  color: #F3F4F6 !important;
+}
+
+.watch-stream-floating-controls {
+  position: absolute;
+  bottom: 18px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 17, 21, 0.82);
+  backdrop-filter: blur(14px);
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+  z-index: 20;
+}
+
+.watch-stream-floating-controls .source-label {
+  color: #E2E8F0;
+}
+
+.watch-stream-floating-controls .source-pills {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.watch-stream-floating-controls .source-pill {
+  color: #94A3B8;
+}
+
+.watch-stream-floating-controls .source-pill.active {
+  background-color: #FFFFFF;
+  color: #0F172A;
+}
+
+/* Bottom Status Bar for Model Inference Telemetry */
+.stream-model-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  padding: 14px 24px;
+  box-shadow: var(--shadow-card);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-bar-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.status-bar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-bar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-bar-value {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.status-bar-divider {
+  width: 1px;
+  height: 32px;
+  background-color: var(--border-color);
+}
+
+.text-orange {
+  color: var(--accent-orange) !important;
+}
+
+.text-green {
+  color: var(--status-green) !important;
+}
+
+.text-orange-bold {
+  color: var(--accent-orange) !important;
+  font-weight: 800;
+}
+
+.text-red-bold {
+  color: var(--status-red) !important;
+  font-weight: 800;
+}
+
+/* -------------------------------------------------------------
+   SETTINGS VIEW
+   ------------------------------------------------------------- */
+.settings-view-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  width: 100%;
+}
+
+.settings-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  padding: 48px 40px;
+  text-align: center;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings-header-icon-box {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  background-color: var(--accent-orange-light);
+  color: var(--accent-orange);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.settings-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }

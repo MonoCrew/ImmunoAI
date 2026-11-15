@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import {
-  ChevronDown,
   Sun,
   Moon,
   Bell,
-  Home,
   ShieldCheck,
   ShieldAlert,
-  Server
+  Server,
+  ChevronDown
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 
-export const Header = ({ isDarkMode, onToggleTheme }) => {
+export const Header = ({ isDarkMode, onToggleTheme, activeTab = 'dashboard' }) => {
   const {
     protectionMode,
     backendStatus,
@@ -19,11 +18,21 @@ export const Header = ({ isDarkMode, onToggleTheme }) => {
   } = useSecurity();
 
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showLocationMenu, setShowLocationMenu] = useState(false);
+
+  const getPageTitle = () => {
+    switch (activeTab) {
+      case 'stream':
+        return 'Live Surveillance Feed';
+      case 'settings':
+        return 'System Configuration';
+      default:
+        return 'Overview & Control Center';
+    }
+  };
 
   return (
     <header className="app-header">
-      {/* Left: Brand & Location */}
+      {/* Left: Brand Identity & Active Section */}
       <div className="header-left-group">
         <div className="header-brand-badge" title="ImmunoAI Deep Learning Intruder Detection">
           <img
@@ -37,47 +46,8 @@ export const Header = ({ isDarkMode, onToggleTheme }) => {
           />
           <div className="brand-badge-text">
             <span className="brand-badge-name">ImmunoAI</span>
-            <span className="brand-badge-subtitle">Intruder Detection System</span>
+            <span className="brand-badge-subtitle">{getPageTitle()}</span>
           </div>
-        </div>
-
-        <div className="header-divider-v"></div>
-
-        <div className="header-location-wrapper">
-          <div
-            className="header-location"
-            onClick={() => setShowLocationMenu(!showLocationMenu)}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="location-icon-box">
-              <Home size={18} className="location-home-icon" />
-            </div>
-            <div className="location-text">
-              <div className="location-title">
-                <span>My home</span>
-                <ChevronDown size={14} className="location-arrow" />
-              </div>
-              <span className="location-address">12 Broadway St. (Zone 1)</span>
-            </div>
-          </div>
-
-        {showLocationMenu && (
-          <div className="dropdown-menu location-dropdown">
-            <div className="dropdown-item active">
-              <strong>12 Broadway St. (Active)</strong>
-              <small>3 Surveillance Cameras Online</small>
-            </div>
-            <div className="dropdown-item">
-              <strong>Downtown Office (Zone 2)</strong>
-              <small>Offline • 2 Cameras</small>
-            </div>
-            <div className="dropdown-item">
-              <strong>Warehouse Bay (Zone 3)</strong>
-              <small>Armed • 4 Cameras</small>
-            </div>
-          </div>
-        )}
         </div>
       </div>
 
