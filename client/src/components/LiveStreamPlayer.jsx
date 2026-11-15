@@ -12,6 +12,7 @@ export const LiveStreamPlayer = () => {
     protectionMode,
     activeAlert,
     dismissAlert,
+    backendStatus,
   } = useSecurity();
 
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
@@ -87,8 +88,14 @@ export const LiveStreamPlayer = () => {
     <div className="stream-card-wrapper" ref={containerRef}>
       {/* Stream Container */}
       <div className={`stream-player-container ${activeAlert ? 'alert-active' : ''}`}>
-        {/* Direct Attached Camera Video Stream */}
-        {hasCameraAccess ? (
+        {/* Backend Live Video Stream or Browser Attached Webcam */}
+        {backendStatus?.online ? (
+          <img
+            src={`${backendStatus.url}/api/stream/cam1`}
+            alt="Live Backend Camera Stream"
+            className="stream-media backend-mjpeg-stream"
+          />
+        ) : hasCameraAccess ? (
           <video
             ref={videoRef}
             className="stream-media"
@@ -205,7 +212,11 @@ export const LiveStreamPlayer = () => {
         <div className="stream-camera-status-info">
           <Camera size={14} className="text-orange" />
           <span className="camera-status-text">
-            Direct System Camera • {hasCameraAccess ? 'Hardware Connected' : 'Direct Feed Active'}
+            {backendStatus?.online
+              ? 'Live Camera Stream • Backend Connected (30 FPS)'
+              : hasCameraAccess
+              ? 'Direct System Camera • Hardware Connected'
+              : 'Direct System Camera • Standby Feed Active'}
           </span>
         </div>
       </div>

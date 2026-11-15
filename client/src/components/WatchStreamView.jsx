@@ -16,6 +16,7 @@ export const WatchStreamView = () => {
     protectionMode,
     activeAlert,
     dismissAlert,
+    backendStatus,
   } = useSecurity();
 
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
@@ -89,9 +90,15 @@ export const WatchStreamView = () => {
 
   return (
     <div className="watch-stream-view" ref={containerRef}>
-      {/* Big Surveillance Screen */}
+        {/* Big Surveillance Screen */}
       <div className={`dedicated-stream-container ${activeAlert ? 'alert-active' : ''}`}>
-        {hasCameraAccess ? (
+        {backendStatus?.online ? (
+          <img
+            src={`${backendStatus.url}/api/stream/cam1`}
+            alt="Backend Camera Stream"
+            className="dedicated-stream-media backend-mjpeg-stream"
+          />
+        ) : hasCameraAccess ? (
           <video
             ref={videoRef}
             className="dedicated-stream-media"
@@ -201,7 +208,13 @@ export const WatchStreamView = () => {
         <div className="watch-stream-floating-actions">
           <div className="floating-camera-indicator">
             <Camera size={13} className="text-orange" />
-            <span>Direct System Camera Feed</span>
+            <span>
+              {backendStatus?.online
+                ? 'Backend Live Stream (30 FPS)'
+                : hasCameraAccess
+                ? 'Direct System Camera Feed'
+                : 'Direct System Camera (Standby)'}
+            </span>
           </div>
         </div>
       </div>

@@ -13,7 +13,7 @@ import asyncio
 import json
 import time
 from typing import List
-from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,29 +21,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from config import HOST, PORT, FRONTEND_ORIGINS, SNAPSHOTS_DIR
+from config import HOST, PORT, SNAPSHOTS_DIR
 from database import init_db, get_all_incidents
 from camera import VideoCamera
 from detector import IntruderDetector
-
-# Initialize FastAPI App
-app = FastAPI(
-    title="ImmunoAI — Deep Learning Intruder Detection API",
-    description="Backend API and WebSocket alert server for ImmunoAI term project.",
-    version="1.0.0"
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows React on port 5173
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Mount snapshots directory for static image serving
-app.mount("/snapshots", StaticFiles(directory=str(SNAPSHOTS_DIR)), name="snapshots")
 
 # In-Memory Global State
 system_state = {
@@ -70,19 +51,19 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"[WebSocket] Client connected! Total active clients: {len(self.active_connections)}")
+        print(f"[WebSocket] Client connected! Active clients: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            print(f"[WebSocket] Client disconnected. Total active: {len(self.active_connections)}")
+            print(f"[WebSocket] Client disconnected. Active clients: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_text(json.dumps(message))
-            except Exception as e:
-                print(f"[WebSocket] Broadcast error: {e}")
+            except Exception:
+                self.disconnect(connection)
 
 
 ws_manager = ConnectionManager()
@@ -90,7 +71,7 @@ ws_manager = ConnectionManager()
 
 # -------------------------------------------------------------
 # BACKGROUND INFERENCE WORKER
-# Runs model inference continuously on camera frames
+# Runs model inference on camera frames when Protection Mode is ARMED
 # -------------------------------------------------------------
 async def background_inference_loop():
     while True:
@@ -105,25 +86,68 @@ async def background_inference_loop():
                     await ws_manager.broadcast(alert)
 
             await asyncio.sleep(0.1)  # Run check ~10 times per second
+        except asyncio.CancelledError:
+            break
         except Exception as e:
             print(f"[Inference Error]: {e}")
             await asyncio.sleep(0.5)
 
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(background_inference_loop())
-    print(f"\n========================================================")
-    print(f" ImmunoAI FastAPI Server Online!")
+# Lifespan Context Manager (replaces deprecated on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    inference_task = asyncio.create_task(background_inference_loop())
+    print("\n========================================================")
+    print(" ImmunoAI FastAPI Server Online!")
     print(f" API Docs: http://localhost:{PORT}/docs")
     print(f" Video Stream: http://localhost:{PORT}/api/stream/cam1")
     print(f" WebSocket Alerts: ws://localhost:{PORT}/ws/alerts")
-    print(f"========================================================\n")
-
-
-@app.on_event("shutdown")
-def shutdown_event():
+    print("========================================================\n")
+    yield
+    inference_task.cancel()
     camera.release()
+
+
+# Initialize FastAPI App with Lifespan
+app = FastAPI(
+    title="ImmunoAI — Deep Learning Intruder Detection API",
+    description="Backend API and WebSocket alert server for ImmunoAI term project.",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Configure CORS for all origins (allows React on localhost:5173)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount snapshots directory for static image serving
+app.mount("/snapshots", StaticFiles(directory=str(SNAPSHOTS_DIR)), name="snapshots")
+
+
+# -------------------------------------------------------------
+# WEBSOCKET ENDPOINT (Fixed 403 Forbidden Error)
+# -------------------------------------------------------------
+@app.websocket("/ws/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "PING":
+                    await websocket.send_text(json.dumps({"type": "PONG"}))
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception:
+        ws_manager.disconnect(websocket)
 
 
 # -------------------------------------------------------------
@@ -202,4 +226,4 @@ def video_feed(camera_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=False)
+    uvicorn.run(app, host=HOST, port=PORT)

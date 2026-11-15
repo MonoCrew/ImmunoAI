@@ -21,21 +21,52 @@ class VideoCamera:
 
         self._start_stream()
 
+    def _find_working_camera(self):
+        """
+        Probes available camera indices (e.g. built-in webcam index 0, 1, 2)
+        using both V4L2 and default backends. Verifies an actual frame can be read.
+        """
+        probe_candidates = [
+            (self.camera_index, cv2.CAP_V4L2),
+            (self.camera_index, cv2.CAP_ANY),
+            (0, cv2.CAP_V4L2),
+            (0, cv2.CAP_ANY),
+            (1, cv2.CAP_V4L2),
+            (1, cv2.CAP_ANY),
+            (2, cv2.CAP_V4L2),
+            (2, cv2.CAP_ANY),
+        ]
+        tested = set()
+
+        for idx, backend in probe_candidates:
+            if (idx, backend) in tested:
+                continue
+            tested.add((idx, backend))
+
+            try:
+                cap = cv2.VideoCapture(idx, backend)
+                if cap.isOpened():
+                    # Attempt reading a test frame to ensure device is not metadata-only or locked
+                    ret, test_frame = cap.read()
+                    if ret and test_frame is not None and test_frame.size > 0:
+                        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                        return cap, idx
+                    cap.release()
+            except Exception:
+                pass
+
+        return None, None
+
     def _start_stream(self):
-        try:
-            self.cap = cv2.VideoCapture(self.camera_index)
-            if self.cap.isOpened():
-                # Set 720p HD resolution
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                self.has_hardware = True
-                print(f"[Camera] Connected to hardware camera index {self.camera_index}")
-            else:
-                self.has_hardware = False
-                print("[Camera] No physical camera found. Initializing surveillance simulation feed.")
-        except Exception as e:
+        cap, working_idx = self._find_working_camera()
+        if cap is not None:
+            self.cap = cap
+            self.has_hardware = True
+            print(f"[Camera] Connected to hardware camera (Device Index: {working_idx})")
+        else:
             self.has_hardware = False
-            print(f"[Camera] Hardware init notice: {e}. Running synthetic stream.")
+            print("[Camera] Physical webcam busy or not detected. Running surveillance simulation feed.")
 
         self.is_running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
