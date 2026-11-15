@@ -150,3 +150,11 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 
+# ImmunoAI Server Data & Weights
+server/data/
+server/*.db
+server/snapshots/*.jpg
+server/weights/*.pth
+!server/weights/.gitkeep
+
+
