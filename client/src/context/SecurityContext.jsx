@@ -22,34 +22,14 @@ export const SecurityProvider = ({ children }) => {
   // Active Camera selection
   const [activeCameraId, setActiveCameraId] = useState('cam1');
 
-  // Cameras data matching screenshot
+  // Single Camera Stream for now as requested
   const [cameras] = useState([
     {
       id: 'cam1',
-      name: 'Camera 01',
-      location: 'Back yard camera',
+      name: 'Main Camera',
+      location: 'Perimeter Surveillance Feed',
       resolution: 'FHD',
-      battery: 85,
-      wifi: 'Wi-Fi',
-      isLive: true,
-      audioOn: true,
-    },
-    {
-      id: 'cam2',
-      name: 'Camera 02',
-      location: 'Pool camera',
-      resolution: 'FHD',
-      battery: 92,
-      wifi: 'Wi-Fi',
-      isLive: true,
-      audioOn: false,
-    },
-    {
-      id: 'cam3',
-      name: 'Camera 03',
-      location: 'Patio camera',
-      resolution: 'FHD',
-      battery: 78,
+      battery: 100,
       wifi: 'Wi-Fi',
       isLive: true,
       audioOn: true,
@@ -67,13 +47,11 @@ export const SecurityProvider = ({ children }) => {
     climate: { name: 'Climate Control', status: true, temp: 24, mode: 'Cold', autoTurnOn: '20:00 PM', autoTurnOff: '18:00 PM' },
   });
 
-  // Whitelisted Authorized Members from screenshot
+  // Whitelisted Authorized Project Members (Cartoon Avatars)
   const [members, setMembers] = useState([
-    { id: 1, name: 'Lorell Morales', role: 'Owner', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
-    { id: 2, name: 'Alex Vance', role: 'Family', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
-    { id: 3, name: 'Sarah Chen', role: 'Family', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
-    { id: 4, name: 'Marcus Bell', role: 'Security Staff', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
-    { id: 5, name: 'Elena Rostova', role: 'Resident', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
+    { id: 1, name: 'Anam', role: 'Team Member', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Anam' },
+    { id: 2, name: 'Maliha', role: 'Team Member', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Maliha' },
+    { id: 3, name: 'Mohsin (me)', role: 'Team Member', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Mohsin' },
   ]);
 
   // Activity Schedule & Intruder Logs
@@ -89,8 +67,52 @@ export const SecurityProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [isMutedState, setIsMutedState] = useState(false);
 
-  // Video feed source: 'mock' | 'webcam' | 'backend' | 'video'
-  const [streamSource, setStreamSource] = useState('mock');
+  // Video feed source: direct camera
+  const [streamSource, setStreamSource] = useState('direct');
+
+  // Captured Intruders Snapshot Gallery (Fetched from server / local placeholders)
+  const [capturedIntruders, setCapturedIntruders] = useState([
+    {
+      id: 'snap-1',
+      timestamp: 'Today, 10:14 PM',
+      camera: 'Attached System Camera',
+      confidence: '98.4%',
+      threatLevel: 'High Alert',
+      image: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=600&auto=format&fit=crop&q=80',
+      details: 'Unauthorized motion detected near main entrance while Protection Mode was ARMED.',
+      box: [32, 22, 34, 58],
+    },
+    {
+      id: 'snap-2',
+      timestamp: 'Today, 08:35 PM',
+      camera: 'Attached System Camera',
+      confidence: '96.2%',
+      threatLevel: 'Breach Detected',
+      image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80',
+      details: 'Person detected within perimeter zone during armed surveillance hours.',
+      box: [28, 18, 38, 65],
+    },
+    {
+      id: 'snap-3',
+      timestamp: 'Yesterday, 11:42 PM',
+      camera: 'Attached System Camera',
+      confidence: '94.8%',
+      threatLevel: 'High Alert',
+      image: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=600&auto=format&fit=crop&q=80',
+      details: 'Night breach detected. Infrared frame verified with YOLOv8 inference.',
+      box: [35, 25, 30, 52],
+    },
+    {
+      id: 'snap-4',
+      timestamp: 'Yesterday, 09:15 PM',
+      camera: 'Attached System Camera',
+      confidence: '97.5%',
+      threatLevel: 'Breach Detected',
+      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
+      details: 'Perimeter line-crossing event triggered audio siren.',
+      box: [24, 20, 36, 60],
+    },
+  ]);
 
   // Backend connection status
   const [backendStatus, setBackendStatus] = useState({
@@ -209,6 +231,19 @@ export const SecurityProvider = ({ children }) => {
 
     // Add to notifications
     setNotifications((prev) => [alertEvent, ...prev]);
+
+    // Automatically record snapshot to Captured Intruders Gallery
+    const newSnapshot = {
+      id: `snap-${Date.now()}`,
+      timestamp: `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      camera: activeCam.name,
+      confidence: `${detection?.confidence || '97.4'}%`,
+      threatLevel: 'Live Breach Detected',
+      image: detection?.imageUrl || 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=600&auto=format&fit=crop&q=80',
+      details: 'Live unauthorized intruder detected by direct system camera feed.',
+      box: detection?.box || [30, 20, 35, 60],
+    };
+    setCapturedIntruders((prev) => [newSnapshot, ...prev]);
   }, [protectionMode, activeCameraId, cameras]);
 
   // Dismiss current alert
@@ -304,6 +339,8 @@ export const SecurityProvider = ({ children }) => {
         toggleMute,
         streamSource,
         setStreamSource,
+        capturedIntruders,
+        setCapturedIntruders,
         backendStatus,
         confidenceThreshold,
         setConfidenceThreshold,

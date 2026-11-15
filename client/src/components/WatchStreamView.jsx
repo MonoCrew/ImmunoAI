@@ -1,99 +1,47 @@
 import { useRef, useState, useEffect } from 'react';
 import {
-  Volume2,
-  VolumeX,
-  Wifi,
-  Battery,
   Maximize2,
-  AlertTriangle,
   Cpu,
   Activity,
   Layers,
   ShieldAlert,
   ShieldCheck,
-  Video
+  Video,
+  Camera
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
-import { getCameraStreamUrl } from '../services/api';
-
-const CAMERA_PREVIEWS = {
-  cam1: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85',
-  cam2: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=1600&auto=format&fit=crop&q=85',
-  cam3: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1600&auto=format&fit=crop&q=85',
-};
 
 export const WatchStreamView = () => {
   const {
     protectionMode,
-    activeCamera,
     activeAlert,
-    triggerIntruderAlert,
     dismissAlert,
-    isMutedState,
-    toggleMute,
-    streamSource,
-    setStreamSource,
-    backendStatus
   } = useSecurity();
 
-  const [resolution, setResolution] = useState('FHD');
-  const [showResMenu, setShowResMenu] = useState(false);
-  const [simulatedBoxes, setSimulatedBoxes] = useState([]);
-  const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
+  const [hasCameraAccess, setHasCameraAccess] = useState(false);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
-  const fileInputRef = useRef(null);
 
-  const currentPoster = CAMERA_PREVIEWS[activeCamera.id] || CAMERA_PREVIEWS.cam1;
-
-  // Handle Simulation
-  const handleSimulateIntruder = () => {
-    if (!protectionMode) {
-      alert('Please turn ON "Security System" (Protection Mode) first to detect intruders!');
-      return;
-    }
-
-    const box = {
-      x: 35 + Math.random() * 20,
-      y: 28 + Math.random() * 15,
-      w: 18 + Math.random() * 10,
-      h: 45 + Math.random() * 15,
-      label: 'INTRUDER',
-      confidence: (94 + Math.random() * 5.8).toFixed(1),
-      trackingId: Math.floor(1000 + Math.random() * 9000),
-    };
-    setSimulatedBoxes([box]);
-
-    triggerIntruderAlert({
-      confidence: box.confidence,
-      box: [box.x, box.y, box.w, box.h],
-    });
-  };
-
-  const handleDismissAlert = () => {
-    setSimulatedBoxes([]);
-    dismissAlert();
-  };
-
-  // Webcam Management
+  // Direct Attached Camera (getUserMedia)
   useEffect(() => {
     let stream = null;
     const currentVideoEl = videoRef.current;
 
-    if (streamSource === 'webcam') {
-      navigator.mediaDevices?.getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices
+        .getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
         .then((s) => {
           stream = s;
           if (currentVideoEl) {
             currentVideoEl.srcObject = s;
-            currentVideoEl.play();
+            currentVideoEl.play().catch(() => {});
           }
+          setHasCameraAccess(true);
         })
         .catch((err) => {
-          console.warn('Webcam access error:', err);
-          alert('Could not access webcam. Falling back to simulated stream.');
-          setStreamSource('mock');
+          console.info('Direct camera stream info:', err?.message || err);
+          setHasCameraAccess(false);
         });
     }
 
@@ -107,7 +55,11 @@ export const WatchStreamView = () => {
         currentVideoEl.srcObject = null;
       }
     };
-  }, [streamSource, setStreamSource]);
+  }, []);
+
+  const handleDismissAlert = () => {
+    dismissAlert();
+  };
 
   // Fullscreen
   const toggleFullscreen = () => {
@@ -119,38 +71,48 @@ export const WatchStreamView = () => {
     }
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setUploadedVideoUrl(url);
-      setStreamSource('video');
-    }
-  };
-
-  const displayBoxes = activeAlert && protectionMode ? simulatedBoxes : [];
+  // Active displayed bounding boxes (from backend alert)
+  const displayBoxes =
+    activeAlert && protectionMode
+      ? [
+          {
+            x: activeAlert.box?.[0] ?? 35,
+            y: activeAlert.box?.[1] ?? 25,
+            w: activeAlert.box?.[2] ?? 25,
+            h: activeAlert.box?.[3] ?? 50,
+            label: 'INTRUDER',
+            confidence: activeAlert.confidence || '97.2',
+            trackingId: activeAlert.id ? String(activeAlert.id).slice(-4) : '1042',
+          },
+        ]
+      : [];
 
   return (
     <div className="watch-stream-view" ref={containerRef}>
       {/* Big Surveillance Screen */}
       <div className={`dedicated-stream-container ${activeAlert ? 'alert-active' : ''}`}>
-        {streamSource === 'webcam' ? (
-          <video ref={videoRef} className="dedicated-stream-media" autoPlay playsInline muted />
-        ) : streamSource === 'video' && uploadedVideoUrl ? (
-          <video src={uploadedVideoUrl} className="dedicated-stream-media" autoPlay loop muted={isMutedState} />
-        ) : streamSource === 'backend' && backendStatus.online ? (
-          <img
-            src={getCameraStreamUrl(activeCamera.id)}
-            alt="Backend Camera Stream"
-            className="dedicated-stream-media backend-mjpeg"
-            onError={() => {
-              alert('Backend stream unavailable. Reverting to Simulated Stream.');
-              setStreamSource('mock');
-            }}
+        {hasCameraAccess ? (
+          <video
+            ref={videoRef}
+            className="dedicated-stream-media"
+            autoPlay
+            playsInline
+            muted
           />
         ) : (
-          <div className="dedicated-poster-viewport">
-            <img src={currentPoster} alt={activeCamera.name} className="dedicated-stream-media poster-img" />
+          <div className="dedicated-poster-viewport direct-camera-backdrop">
+            <video
+              ref={videoRef}
+              className="dedicated-stream-media direct-hidden-video"
+              autoPlay
+              playsInline
+              muted
+            />
+            <img
+              src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85"
+              alt="Direct Attached System Camera"
+              className="dedicated-stream-media poster-img"
+            />
             <div className="stream-lens-overlay"></div>
           </div>
         )}
@@ -187,10 +149,10 @@ export const WatchStreamView = () => {
 
           {!protectionMode && (
             <div className="standby-watermark">
-              <span className="standby-icon">🛡️</span>
+              <ShieldCheck size={18} className="text-muted" />
               <div>
                 <strong>Protection Mode Standby</strong>
-                <p>Toggle "Security System" ON in Dashboard to activate real-time intruder detection</p>
+                <p>Toggle "Protection Mode" ON in Dashboard to activate real-time intruder detection</p>
               </div>
             </div>
           )}
@@ -198,11 +160,12 @@ export const WatchStreamView = () => {
           {activeAlert && (
             <div className="stream-alert-banner">
               <div className="alert-banner-left">
-                <span className="alert-siren-icon">🚨</span>
+                <ShieldAlert size={22} className="alert-siren-icon text-red" />
                 <div>
-                  <h4 className="alert-banner-title">INTRUDER DETECTED IN {activeAlert.location.toUpperCase()}!</h4>
+                  <h4 className="alert-banner-title">INTRUDER DETECTED IN CAMERA FEED!</h4>
                   <p className="alert-banner-sub">
-                    Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at {activeAlert.timestamp}
+                    Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at{' '}
+                    {activeAlert.timestamp}
                   </p>
                 </div>
               </div>
@@ -213,116 +176,33 @@ export const WatchStreamView = () => {
           )}
         </div>
 
-        {/* Top Badges */}
+        {/* Top Bar: Only Live Badge (Clean - FHD, 100%, Wifi, On removed per instructions) */}
         <div className="stream-top-bar">
           <div className="stream-badges-left">
-            <div className="badge-pill dropdown" onClick={() => setShowResMenu(!showResMenu)}>
-              <span>{resolution}</span>
-              <span className="arrow-down">⌄</span>
-              {showResMenu && (
-                <div className="res-dropdown">
-                  {['4K UHD', 'FHD (1080p)', 'HD (720p)'].map((r) => (
-                    <div
-                      key={r}
-                      className="res-option"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setResolution(r.split(' ')[0]);
-                        setShowResMenu(false);
-                      }}
-                    >
-                      {r}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <div className="badge-pill live-badge">
               <span className="live-dot"></span>
-              <span>Live • {activeCamera.name} ({activeCamera.location})</span>
+              <span>Live • Attached System Camera</span>
             </div>
           </div>
 
           <div className="stream-badges-right">
-            <div className="badge-pill info-badge">
-              <Battery size={13} className="badge-icon" />
-              <span>{activeCamera.battery}%</span>
-            </div>
-
-            <div className="badge-pill info-badge">
-              <Wifi size={13} className="badge-icon" />
-              <span>{activeCamera.wifi}</span>
-            </div>
-
-            <div
-              className={`badge-pill toggleable ${!isMutedState ? 'active' : ''}`}
-              onClick={toggleMute}
-              role="button"
-              tabIndex={0}
+            <button
+              className="action-btn icon-only fullscreen-pill"
+              onClick={toggleFullscreen}
+              title="Fullscreen"
+              type="button"
             >
-              {!isMutedState ? <Volume2 size={13} /> : <VolumeX size={13} />}
-              <span>{!isMutedState ? 'On' : 'Mute'}</span>
-            </div>
-
-            <button className="action-btn icon-only fullscreen-pill" onClick={toggleFullscreen} type="button">
               <Maximize2 size={14} />
             </button>
           </div>
         </div>
 
-        {/* Stream Source Controls (Floating at bottom inside player) */}
-        <div className="watch-stream-floating-controls">
-          <div className="source-selector">
-            <span className="source-label">Source:</span>
-            <div className="source-pills">
-              <button
-                className={`source-pill ${streamSource === 'mock' ? 'active' : ''}`}
-                onClick={() => setStreamSource('mock')}
-                type="button"
-              >
-                Simulated CCTV
-              </button>
-              <button
-                className={`source-pill ${streamSource === 'webcam' ? 'active' : ''}`}
-                onClick={() => setStreamSource('webcam')}
-                type="button"
-              >
-                Webcam
-              </button>
-              <button
-                className={`source-pill ${streamSource === 'backend' ? 'active' : ''}`}
-                onClick={() => setStreamSource('backend')}
-                type="button"
-              >
-                Backend API
-              </button>
-              <button
-                className={`source-pill ${streamSource === 'video' ? 'active' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-              >
-                Upload Clip
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept="video/*"
-                onChange={handleFileUpload}
-              />
-            </div>
+        {/* Direct Camera Feed Indicator at bottom right of player */}
+        <div className="watch-stream-floating-actions">
+          <div className="floating-camera-indicator">
+            <Camera size={13} className="text-orange" />
+            <span>Direct System Camera Feed</span>
           </div>
-
-          <button
-            className="action-btn simulate-btn"
-            onClick={handleSimulateIntruder}
-            title="Simulate an Intruder Detection"
-            type="button"
-          >
-            <AlertTriangle size={15} />
-            <span>Simulate Intruder</span>
-          </button>
         </div>
       </div>
 
@@ -358,7 +238,7 @@ export const WatchStreamView = () => {
           </div>
           <div className="status-bar-info">
             <span className="status-bar-label">Target Classes</span>
-            <span className="status-bar-value">Person, Intruder, Vehicle</span>
+            <span className="status-bar-value">Person, Intruder</span>
           </div>
         </div>
 

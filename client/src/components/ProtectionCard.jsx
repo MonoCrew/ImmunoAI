@@ -12,7 +12,7 @@ export const ProtectionCard = () => {
       onClick={toggleProtectionMode}
       role="button"
       tabIndex={0}
-      title="Click to toggle Protection Mode (Intruder Detection On / Off)"
+      title="Toggle ImmunoAI Protection Mode (Intruder Detection ARMED / Standby)"
     >
       <div className="card-top-row">
         <div className="card-icon-title">
@@ -23,12 +23,12 @@ export const ProtectionCard = () => {
           )}
         </div>
         <span className={`status-tag ${protectionMode ? 'armed-tag' : ''}`}>
-          {protectionMode ? 'ARMED' : 'Off'}
+          {protectionMode ? 'ARMED' : 'Standby'}
         </span>
       </div>
 
       <div className="card-main-info">
-        <div className="card-device-name">Security System</div>
+        <div className="card-device-name">Protection Mode</div>
         <div className="card-subtext">
           {protectionMode ? 'Intruder Detection Active' : 'Standby • Protection Off'}
         </div>

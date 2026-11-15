@@ -1,22 +1,22 @@
 import { useState } from 'react';
 import { SecurityProvider } from './context/SecurityContext';
-import { useSecurity } from './context/useSecurity';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { LiveStreamPlayer } from './components/LiveStreamPlayer';
-import { SmartControlCard } from './components/SmartControlCard';
 import { ProtectionCard } from './components/ProtectionCard';
-import { MiniCalendar } from './components/MiniCalendar';
-import { ActivitySchedule } from './components/ActivitySchedule';
-import { MembersList } from './components/MembersList';
-import { CameraThumbnails } from './components/CameraThumbnails';
+import {
+  SoundCard,
+  WifiStatusCard,
+  WifiSpeedCard,
+} from './components/SmartControlCard';
+import { WeatherCard } from './components/WeatherCard';
+import { CapturedIntruders } from './components/CapturedIntruders';
 import { IntruderAlertBanner } from './components/IntruderAlertBanner';
 import { WatchStreamView } from './components/WatchStreamView';
 import { SettingsView } from './components/SettingsView';
 import './App.css';
 
 function DashboardContent() {
-  const { smartDevices } = useSecurity();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
@@ -63,43 +63,33 @@ function DashboardContent() {
           ) : (
             /* Dashboard View */
             <main className="dashboard-grid">
-              {/* Left Big Section (Stream + Bottom Subgrid) */}
+              {/* Left Big Section (Direct Camera Stream + Captured Intruders Gallery) */}
               <section className="grid-left-section">
-                {/* Live Surveillance Video Player */}
+                {/* Live Surveillance Video Player (Direct System Camera) */}
                 <LiveStreamPlayer />
 
-                {/* Bottom 3-Card Subgrid */}
-                <div className="left-bottom-subgrid">
-                  <MiniCalendar />
-                  <ActivitySchedule />
-                  <MembersList />
-                </div>
+                {/* Captured Intruders Snapshot Gallery (Replaces Calendar, Schedule, Members) */}
+                <CapturedIntruders />
               </section>
 
-              {/* Right Side Section (Smart Controls + Cameras) */}
+              {/* Right Side Section (5 Dedicated Controls) */}
               <aside className="grid-right-section">
-                {/* 2x4 Device Controls Grid */}
                 <div className="devices-grid">
-                  {/* Row 1 */}
-                  <SmartControlCard deviceKey="frontDoorLock" device={smartDevices.frontDoorLock} />
-                  <SmartControlCard deviceKey="backyardSprinklers" device={smartDevices.backyardSprinklers} />
-
-                  {/* Row 2 */}
-                  <SmartControlCard deviceKey="garageDoor" device={smartDevices.garageDoor} />
-                  <SmartControlCard deviceKey="outdoorLights" device={smartDevices.outdoorLights} />
-
-                  {/* Row 3 */}
-                  <SmartControlCard deviceKey="sleepMode" device={smartDevices.sleepMode} />
-                  {/* THE CORE CHECK: Protection Mode (Security System) */}
+                  {/* Card 1: System Protection Mode (Intruder Detection ARMED/Standby) */}
                   <ProtectionCard />
 
-                  {/* Row 4 */}
-                  <SmartControlCard deviceKey="internet" device={smartDevices.internet} />
-                  <SmartControlCard deviceKey="climate" device={smartDevices.climate} />
-                </div>
+                  {/* Card 2: Sound (Alarm Siren Toggle) */}
+                  <SoundCard />
 
-                {/* Bottom Right: Multi-Camera Gallery */}
-                <CameraThumbnails />
+                  {/* Card 3: Wi-Fi Status (Static - No Button) */}
+                  <WifiStatusCard />
+
+                  {/* Card 4: Wi-Fi Speed (Telemetry Speed) */}
+                  <WifiSpeedCard />
+
+                  {/* Card 5: Weather Updates & 5-Day Forecast (IndexedDB Cached) */}
+                  <WeatherCard />
+                </div>
               </aside>
             </main>
           )}

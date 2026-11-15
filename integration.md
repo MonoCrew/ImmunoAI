@@ -144,77 +144,47 @@ def video_feed(camera_id: str):
 
 ---
 
-### 3.5 Intruder Events History
-- **`GET /api/events`**
+### 3.5 Intruder Snapshots & History
+- **`GET /api/intruders/snapshots`**
+- Fetches recent captured intruder snapshots displayed in the **Captured Intruders** gallery.
 - **Response `200 OK`**:
 ```json
 [
   {
-    "id": 17000000001,
-    "timestamp": "10:14:22 PM",
-    "camera_id": "cam1",
-    "camera_name": "Camera 01",
-    "location": "Back yard camera",
-    "confidence": 97.4,
-    "snapshot_url": "/static/snapshots/event_17000000001.jpg",
-    "box": [180, 110, 240, 360]
+    "id": "snap-101",
+    "timestamp": "Today, 10:14 PM",
+    "camera": "Attached System Camera",
+    "confidence": "98.4%",
+    "threatLevel": "High Alert",
+    "image": "/static/snapshots/snap_101.jpg",
+    "details": "Unauthorized person detected near main perimeter while Protection Mode was ARMED.",
+    "box": [32, 22, 34, 58]
   }
 ]
 ```
 
-- **`POST /api/events`** (Manually log or report detection)
-- **Request Body**:
-```json
-{
-  "camera_id": "cam1",
-  "confidence": 96.5,
-  "box": [150, 100, 220, 340]
-}
-```
-
 ---
 
-### 3.6 Authorized Members (Whitelist)
+### 3.6 Whitelisted Project Members
 - **`GET /api/members`**
 - **Response `200 OK`**:
 ```json
 [
-  {
-    "id": 1,
-    "name": "Lorell Morales",
-    "role": "Owner",
-    "avatar": "https://..."
-  }
+  { "id": 1, "name": "Anam", "role": "Team Member" },
+  { "id": 2, "name": "Maliha", "role": "Team Member" },
+  { "id": 3, "name": "Mohsin (me)", "role": "Team Member" }
 ]
-```
-
-- **`POST /api/members`** (Enroll new authorized face)
-- **Request Body**:
-```json
-{
-  "name": "Alex Vance",
-  "role": "Family Member",
-  "avatar": "https://..."
-}
 ```
 
 ---
 
-### 3.7 Smart Devices State
-- **`POST /api/devices/{device_id}`**
-- **Request Body**:
-```json
-{
-  "status": true
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "device_id": "frontDoorLock",
-  "status": true
-}
-```
+### 3.7 Dashboard Status & Telemetry Cards
+The dashboard right side contains 5 dedicated cards:
+1. **Protection Mode**: Toggles system intruder surveillance via `POST /api/protection-mode`.
+2. **Alarm Sound**: Audio siren control (client Web Audio synthesizer + `/api/sound/mute`).
+3. **Wi-Fi Status**: Static network telemetry (`ImmunoNet-5GHz • -42 dBm • Optimal`). No toggle button.
+4. **Wi-Fi Speed**: Video stream bandwidth rate (`↓ 120.4 Mbps • ↑ 42.1 Mbps • 14ms latency`).
+5. **Weather & 5-Day Forecast**: Direct OpenWeather integration cached in IndexedDB with automatic hourly refresh.
 
 ---
 

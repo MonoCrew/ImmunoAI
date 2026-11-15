@@ -165,7 +165,7 @@
 .nav-btn {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -227,129 +227,262 @@
 }
 
 /* -------------------------------------------------------------
-   MAIN AREA & HEADER
+   MAIN AREA & HEADER (EXPANDED UNIFIED TOP BAR)
    ------------------------------------------------------------- */
 .dashboard-main-area {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px 32px 32px 32px;
+  padding: 6px 14px 20px 14px;
   background-color: var(--bg-page);
-  gap: 20px;
+  gap: 12px;
   min-height: 100vh;
   box-sizing: border-box;
   overflow-y: auto;
 }
 
 .app-header {
+  width: 100%;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  padding: 10px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 8px;
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
   position: relative;
+  gap: 14px;
 }
 
-/* Brand & Location Group */
-.header-left-group {
+/* Left: Expanded ImmunoAI Brand & Page Title */
+.header-brand-expanded {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
-.header-brand-badge {
+.header-logo-container {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
   display: flex;
   align-items: center;
-  gap: 10px;
-  background-color: var(--bg-card);
-  padding: 6px 14px 6px 8px;
-  border-radius: var(--radius-sm);
+  justify-content: center;
   border: 1px solid var(--border-color);
+  flex-shrink: 0;
   box-shadow: var(--shadow-sm);
 }
 
-.brand-badge-img {
+.header-main-logo {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
   object-fit: contain;
+  border-radius: 4px;
 }
 
-.brand-badge-text {
+.header-titles {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
-.brand-badge-name {
-  font-size: 15px;
+.header-app-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-app-name {
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: -0.3px;
-  color: var(--accent-orange);
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  margin: 0;
 }
 
-.brand-badge-subtitle {
+.header-version-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-orange);
+  background-color: var(--accent-orange-light);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(232, 131, 56, 0.25);
+  line-height: 1;
+}
+
+.header-section-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.1px;
+}
+
+/* Center: System Status Pill */
+.header-center-status {
+  display: flex;
+  align-items: center;
+}
+
+/* Right: Actions, Controls & Team Members */
+.header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-divider-v {
+  width: 1px;
+  height: 28px;
+  background-color: var(--border-color);
+}
+
+/* Team Members Header Box (Anam, Maliha, Mohsin with Cartoon Avatars) */
+.team-members-header-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.team-members-header-box:hover {
+  background-color: var(--bg-card);
+  border-color: #D1D5DB;
+  box-shadow: var(--shadow-sm);
+}
+
+.team-stacked-avatars {
+  display: flex;
+  align-items: center;
+  margin-right: 2px;
+}
+
+.cartoon-avatar-wrapper {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--bg-card);
+  margin-left: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  background-color: var(--bg-card);
+}
+
+.cartoon-avatar-wrapper:first-child {
+  margin-left: 0;
+}
+
+.z-3 { z-index: 3; }
+.z-2 { z-index: 2; }
+.z-1 { z-index: 1; }
+
+.team-cartoon-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.team-header-names-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.team-header-names {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.team-header-subtitle {
   font-size: 10px;
   font-weight: 600;
   color: var(--text-secondary);
 }
 
-.header-divider-v {
-  width: 1px;
-  height: 32px;
-  background-color: var(--border-color);
-}
-
-/* Location Selector */
-.header-location-wrapper {
-  position: relative;
-}
-
-.header-location {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.location-icon-box {
-  width: 36px;
-  height: 36px;
+.team-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 290px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background-color: var(--bg-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
 }
 
-.location-text {
+.team-dropdown-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  background-color: var(--bg-subtle);
+}
+
+.team-dropdown-list {
+  padding: 6px;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
-.location-title {
+.team-dropdown-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  font-size: 15px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.team-dropdown-item:hover {
+  background-color: var(--bg-subtle);
+}
+
+.mini-cartoon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.team-member-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.team-member-info strong {
+  font-size: 13px;
   color: var(--text-primary);
 }
 
-.location-arrow {
+.team-member-info small {
+  font-size: 11px;
   color: var(--text-secondary);
-}
-
-.location-address {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* Header Status Pill */
-.header-status-pill {
-  display: flex;
-  align-items: center;
 }
 
 .status-badge {
@@ -800,7 +933,7 @@
   background: rgba(220, 38, 38, 0.92);
   backdrop-filter: blur(8px);
   padding: 12px 18px;
-  border-radius: 12px;
+  border-radius: 8px;
   color: #FFFFFF;
   display: flex;
   align-items: center;
@@ -1034,239 +1167,374 @@
 }
 
 /* -------------------------------------------------------------
-   BOTTOM SUBGRID (CALENDAR, DAILY SCHEDULE, MEMBERS)
+/* -------------------------------------------------------------
+   CAPTURED INTRUDERS SNAPSHOT GALLERY (BOTTOM LEFT HERO)
    ------------------------------------------------------------- */
-.left-bottom-subgrid {
-  display: grid;
-  grid-template-columns: 1.15fr 1.65fr 1.1fr;
-  gap: 16px;
-}
-
-@media (max-width: 900px) {
-  .left-bottom-subgrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.bottom-card {
+.captured-intruders-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
-  padding: 16px 18px;
+  padding: 18px 20px;
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 160px;
-}
-
-/* 1. Mini Calendar */
-.mini-calendar-card {
-  gap: 12px;
-}
-
-.calendar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.cal-month-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.cal-nav-btn {
-  color: var(--text-secondary);
-  padding: 4px;
-}
-
-.calendar-days-strip {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px;
-}
-
-.cal-day-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 6px;
-  border-radius: 14px;
-  cursor: pointer;
-  user-select: none;
-  flex: 1;
-  transition: all 0.2s ease;
-}
-
-.cal-day-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.cal-day-number {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.cal-day-cell.selected {
-  background-color: #1C1E21;
-  color: #FFFFFF;
-}
-
-.dark-theme .cal-day-cell.selected {
-  background-color: #F3F4F6;
-  color: #111215;
-}
-
-.cal-day-cell.selected .cal-day-label,
-.cal-day-cell.selected .cal-day-number {
-  color: inherit;
-}
-
-/* 2. Daily Schedule */
-.daily-schedule-card {
-  gap: 12px;
-}
-
-.schedule-header, .members-header, .camera-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.schedule-title, .members-title, .camera-section-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.see-all-link {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.see-all-link:hover {
-  color: var(--accent-orange);
-}
-
-.schedule-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.schedule-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
-  font-size: 12px;
-}
-
-.schedule-row.intruder-row {
-  background-color: var(--status-red-light);
-  padding: 4px 8px;
-  border-radius: 6px;
-  border-left: 2px solid var(--status-red);
-}
-
-.schedule-row.intruder-row .schedule-name {
-  color: var(--status-red);
-  font-weight: 700;
-}
-
-.schedule-row-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-primary);
-}
-
-.item-icon {
-  color: var(--text-secondary);
-}
-
-.item-icon.alert {
-  color: var(--status-red);
-}
-
-.schedule-name {
-  font-weight: 500;
-}
-
-.schedule-row-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.schedule-time {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.schedule-edit-btn {
-  color: var(--text-muted);
-  opacity: 0.6;
-}
-
-.schedule-edit-btn:hover {
-  opacity: 1;
-  color: var(--text-primary);
-}
-
-/* 3. Members Card */
-.members-card {
-  gap: 12px;
-}
-
-.members-avatar-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.member-avatar-wrapper {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 2px solid var(--bg-card);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.member-avatar-img {
+  gap: 16px;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
-.add-member-btn {
+.intruders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.intruders-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.intruders-icon-badge {
   width: 38px;
   height: 38px;
-  border-radius: 50%;
-  background-color: var(--accent-orange);
-  color: #FFFFFF;
+  border-radius: 8px;
+  background-color: var(--accent-orange-light);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 10px var(--accent-orange-glow);
 }
 
-.add-member-btn:hover {
-  background-color: var(--accent-orange-hover);
-  transform: scale(1.05);
+.intruders-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.intruders-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.intruders-count-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background-color: var(--status-red-light);
+  color: var(--status-red);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.intruders-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.intruders-header-actions .sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.intruders-header-actions .sync-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.sync-btn.spinning svg {
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+.empty-intruders-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-intruders-placeholder p {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-intruders-placeholder span {
+  font-size: 12px;
+}
+
+.intruders-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 950px) {
+  .intruders-gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.intruder-snapshot-card {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.intruder-snapshot-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-orange);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.snapshot-media-box {
+  width: 100%;
+  aspect-ratio: 16/10;
+  position: relative;
+  background-color: #0F1115;
+  overflow: hidden;
+}
+
+.snapshot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.intruder-snapshot-card:hover .snapshot-img {
+  transform: scale(1.04);
+}
+
+.snapshot-ai-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(220, 38, 38, 0.9);
+  backdrop-filter: blur(4px);
+  color: #FFFFFF;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.5px;
+}
+
+.ai-dot-pulse {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #FFFFFF;
+  animation: pulse-dot 1.2s infinite;
+}
+
+.snapshot-inspect-hint {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #FFFFFF;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.intruder-snapshot-card:hover .snapshot-inspect-hint {
+  opacity: 1;
+}
+
+.snapshot-card-meta {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.snapshot-time-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.snapshot-camera-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.snapshot-threat-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--status-red);
+}
+
+/* Intruder Inspection Modal */
+.intruder-inspect-modal {
+  max-width: 680px;
+  width: 90%;
+  border-radius: var(--radius-card);
+}
+
+.inspect-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspect-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inspect-image-wrapper {
+  width: 100%;
+  max-height: 360px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  background-color: #0F1115;
+}
+
+.inspect-big-img {
+  width: 100%;
+  height: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  display: block;
+}
+
+.inspect-bounding-box-mock {
+  position: absolute;
+  top: 15%;
+  left: 25%;
+  width: 45%;
+  height: 70%;
+  border: 2px solid var(--status-red);
+  background: rgba(239, 68, 68, 0.12);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+  pointer-events: none;
+}
+
+.box-tag-large {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  background-color: var(--status-red);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.inspect-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.inspect-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background-color: var(--bg-subtle);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.backend-integration-note {
+  background-color: var(--bg-subtle);
+  border-left: 3px solid var(--accent-orange);
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.backend-integration-note code {
+  background-color: var(--bg-card);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+  color: var(--accent-orange);
+  border: 1px solid var(--border-color);
+}
+
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--accent-orange);
+  margin-bottom: 4px;
+}
+
+.inspect-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.action-btn-outline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.action-btn-primary {
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: var(--accent-orange);
+  color: #FFFFFF;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
 }
 
 /* -------------------------------------------------------------
@@ -1482,6 +1750,457 @@
   color: #38BDF8;
 }
 
+/* Card 3: Wi-Fi Status (Static - NO BUTTON per user requirement) */
+.static-info-card {
+  cursor: default !important;
+}
+
+.static-info-card:hover {
+  border-color: var(--border-color) !important;
+  transform: none !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.card-bottom-static-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.signal-bars-indicator {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+}
+
+.sig-bar {
+  width: 4px;
+  background-color: #D1D5DB;
+  border-radius: 1px;
+}
+
+.dark-theme .sig-bar {
+  background-color: #4B5563;
+}
+
+.sig-bar.bar-1 { height: 4px; }
+.sig-bar.bar-2 { height: 8px; }
+.sig-bar.bar-3 { height: 12px; }
+.sig-bar.bar-4 { height: 16px; }
+
+.sig-bar.active {
+  background-color: var(--status-green);
+}
+
+.static-pill-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--status-green);
+  background-color: var(--status-green-light);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+}
+
+/* Card 4: Wi-Fi Speed Telemetry */
+.card-bottom-telemetry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.speed-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.speed-pill.download {
+  background-color: var(--accent-orange-light);
+  color: var(--accent-orange);
+}
+
+.speed-pill.upload {
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+/* -------------------------------------------------------------
+   CARD 5: WEATHER CARD & 5-DAY FORECAST (INDEXEDDB CACHED)
+   ------------------------------------------------------------- */
+.weather-card-wide {
+  grid-column: span 2;
+  cursor: default !important;
+  user-select: none;
+}
+
+@media (max-width: 600px) {
+  .weather-card-wide {
+    grid-column: span 1;
+  }
+}
+
+.weather-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weather-card:hover {
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-card) !important;
+  transform: none !important;
+}
+
+.weather-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.weather-location-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.weather-location-pill .location-pin {
+  flex-shrink: 0;
+}
+
+.weather-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--status-green);
+  box-shadow: 0 0 6px var(--status-green);
+  display: inline-block;
+}
+
+.weather-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-updated-time {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.weather-refresh-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.weather-refresh-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.weather-main-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.6fr;
+  gap: 14px;
+  align-items: center;
+}
+
+@media (max-width: 820px) {
+  .weather-main-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Left: Current Weather Panel */
+.weather-current-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 820px) {
+  .weather-current-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-right: 0;
+    padding-bottom: 10px;
+  }
+}
+
+.current-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.current-temp-numbers {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.current-temp-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.current-temp-unit {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.current-condition-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.cond-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cond-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.weather-metrics-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.metric-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Right: 5-Day Forecast Panel */
+.weather-forecast-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forecast-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.forecast-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.forecast-days-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.forecast-day-cell {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.forecast-day-cell:hover {
+  border-color: var(--accent-orange);
+}
+
+.forecast-day-cell.is-today {
+  border-color: rgba(232, 131, 56, 0.4);
+  background-color: var(--accent-orange-light);
+}
+
+.forecast-day-cell.is-today .day-name {
+  color: var(--accent-orange);
+  font-weight: 700;
+}
+
+.day-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.forecast-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-temp-range {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.day-high {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.day-low {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Weather Icon Color Classes */
+.weather-icon.sun { color: #F59E0B; }
+.weather-icon.cloud-sun { color: #F59E0B; }
+.weather-icon.cloud { color: #94A3B8; }
+.weather-icon.rain { color: #38BDF8; }
+.weather-icon.snow { color: #93C5FD; }
+.weather-icon.lightning { color: #8B5CF6; }
+.weather-icon.fog { color: #64748B; }
+
+.text-blue { color: #38BDF8; }
+
+.weather-loading-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 30px 10px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.weather-error-banner {
+  font-size: 10.5px;
+  color: var(--status-red);
+  background-color: var(--status-red-light);
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+/* Card 5: Climate Card Wide (legacy support) */
+.climate-card-wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 600px) {
+  .climate-card-wide {
+    grid-column: span 1;
+  }
+}
+
+/* Direct Camera Feed Overlays & Controls */
+.direct-camera-backdrop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.direct-hidden-video {
+  display: none;
+}
+
+.stream-camera-status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.watch-stream-floating-actions {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
+}
+
+.floating-camera-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(18, 20, 24, 0.75);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.icon-only-badge {
+  padding: 5px 8px !important;
+  cursor: pointer !important;
+}
+
 /* -------------------------------------------------------------
    CAMERA THUMBNAILS (BOTTOM RIGHT)
    ------------------------------------------------------------- */
@@ -1611,7 +2330,7 @@
 .alert-content-box {
   background-color: #B91C1C;
   color: #FFFFFF;
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 14px 20px;
   display: flex;
   align-items: center;
@@ -1771,7 +2490,7 @@
 
 .form-input, .form-select {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-subtle);
   color: var(--text-primary);
@@ -1792,7 +2511,7 @@
 
 .btn-cancel {
   padding: 9px 16px;
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -1800,7 +2519,7 @@
 
 .btn-submit {
   padding: 9px 18px;
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   background-color: var(--accent-orange);
@@ -2064,7 +2783,7 @@
 .settings-header-icon-box {
   width: 68px;
   height: 68px;
-  border-radius: 20px;
+  border-radius: 8px;
   background-color: var(--accent-orange-light);
   color: var(--accent-orange);
   display: flex;
