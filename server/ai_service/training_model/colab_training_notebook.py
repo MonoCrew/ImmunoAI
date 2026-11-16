@@ -1,28 +1,76 @@
 """
 ================================================================================
- ImmunoAI — Google Colab GPU Training Script
- Copy-paste this entire script into a Google Colab notebook cell!
+ ImmunoAI — Google Colab MS COCO Person Dataset Training Pipeline
  
- Recommended Runtime: Free T4 GPU (Runtime -> Change runtime type -> T4 GPU)
+ Extracts 5,000 real MS COCO images (Person vs Non-Person background)
+ and trains the ImmunoAICNN Deep Learning model on GPU!
+ 
+ Runtime: Google Colab Free T4 GPU (Runtime -> Change runtime type -> T4 GPU)
+ Total Execution Time: ~6 to 8 minutes
 ================================================================================
 """
 
 # ==============================================================================
-# STEP 1: Install Kaggle & Download Dataset Directly in Colab
+# CELL 1: Download Official MS COCO Subset & Extract Person vs Background
+# (Run this directly in Google Colab — downloads in ~20 seconds from AWS S3)
 # ==============================================================================
 """
-In a Google Colab cell, download the Kaggle dataset:
+# Run in Colab:
+!pip install -q pycocotools
 
-!pip install -q kagglehub
-import kagglehub
-path = kagglehub.dataset_download("hammadjavaid/person-classification-dataset")
-print("Path to dataset files:", path)
+import os
+import shutil
+from pycocotools.coco import COCO
 
-# Or using Kaggle CLI (if you have kaggle.json):
-# !mkdir -p ~/.kaggle && cp kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
-# !kaggle datasets download -d hammadjavaid/person-classification-dataset --unzip -p ./data
+# 1. Download MS COCO 2017 (Val images 1GB + Annotations 240MB)
+!wget -c -q --show-progress http://images.cocodataset.org/zips/val2017.zip
+!wget -c -q --show-progress http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+
+!unzip -q -o val2017.zip
+!unzip -q -o annotations_trainval2017.zip
+
+# 2. Parse COCO annotations to extract Person (Class 1) vs Non-Person Background (Class 0)
+coco = COCO('annotations/instances_val2017.json')
+person_cat_id = coco.getCatIds(catNms=['person'])[0]
+person_img_ids = set(coco.getImgIds(catIds=[person_cat_id]))
+
+DATA_DIR = './coco_person_data'
+os.makedirs(f'{DATA_DIR}/train/normal', exist_ok=True)
+os.makedirs(f'{DATA_DIR}/train/person', exist_ok=True)
+os.makedirs(f'{DATA_DIR}/val/normal', exist_ok=True)
+os.makedirs(f'{DATA_DIR}/val/person', exist_ok=True)
+
+print("Filtering MS COCO images into balanced Person vs Normal classes...")
+person_count = 0
+normal_count = 0
+
+for img_id, info in coco.imgs.items():
+    fname = info['file_name']
+    src_path = os.path.join('val2017', fname)
+    if not os.path.exists(src_path):
+        continue
+
+    is_person = img_id in person_img_ids
+    # 80% train / 20% validation split based on image ID
+    split = 'val' if (img_id % 5 == 0) else 'train'
+
+    if is_person:
+        dst = f'{DATA_DIR}/{split}/person/{fname}'
+        shutil.copy(src_path, dst)
+        person_count += 1
+    else:
+        # Keep dataset balanced: match person count
+        if normal_count < 2600:
+            dst = f'{DATA_DIR}/{split}/normal/{fname}'
+            shutil.copy(src_path, dst)
+            normal_count += 1
+
+print(f"Dataset Prepared: {person_count} Person images, {normal_count} Normal background images.")
 """
 
+# ==============================================================================
+# CELL 2: PyTorch Model Definition, Training & Automatic Weight Download
+# ==============================================================================
 import os
 import time
 from pathlib import Path
@@ -32,9 +80,10 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 
-# ==============================================================================
-# STEP 2: The Exact ImmunoAICNN Architecture (Same as Local)
-# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. ImmunoAICNN Architecture (100% Identical to Local Inference Model)
+# ------------------------------------------------------------------------------
 class ConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int):
         super(ConvBlock, self).__init__()
@@ -88,14 +137,14 @@ class ImmunoAICNN(nn.Module):
         return logits
 
 
-# ==============================================================================
-# STEP 3: Training Function
-# ==============================================================================
-def train_colab(data_dir: str, epochs: int = 25, batch_size: int = 32, lr: float = 0.001):
+# ------------------------------------------------------------------------------
+# 2. Training Function on GPU
+# ------------------------------------------------------------------------------
+def train_coco_person(data_dir: str = "./coco_person_data", epochs: int = 20, batch_size: int = 32, lr: float = 0.001):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[Device] Using: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
+    print(f"\n[ImmunoAI Training] Using Device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
 
-    # Image Transforms
+    # Image Transforms (Standard ImageNet Normalization)
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(p=0.5),
@@ -111,36 +160,29 @@ def train_colab(data_dir: str, epochs: int = 25, batch_size: int = 32, lr: float
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Dataset Loader
-    data_path = Path(data_dir)
-    train_dir = data_path / "train"
-    val_dir = data_path / "val" if (data_path / "val").exists() else (data_path / "test")
+    train_ds = datasets.ImageFolder(f"{data_dir}/train", transform=train_transform)
+    val_ds = datasets.ImageFolder(f"{data_dir}/val", transform=val_transform)
 
-    if not val_dir.exists():
-        # Auto-split single directory into 80/20 train/val
-        full_ds = datasets.ImageFolder(str(data_path), transform=train_transform)
-        train_size = int(0.8 * len(full_ds))
-        val_size = len(full_ds) - train_size
-        train_ds, val_ds = torch.utils.data.random_split(full_ds, [train_size, val_size])
-    else:
-        train_ds = datasets.ImageFolder(str(train_dir), transform=train_transform)
-        val_ds = datasets.ImageFolder(str(val_dir), transform=val_transform)
+    # In alphabetical sorting: 'normal' -> 0 (negative), 'person' -> 1 (positive intruder)
+    print(f"[Class Mapping] {train_ds.class_to_idx} (0 = Normal Background, 1 = Person Intruder)")
+    print(f"[Data Split] Train: {len(train_ds)} samples | Val: {len(val_ds)} samples\n")
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-    print(f"[Data] Train: {len(train_ds)} samples | Val: {len(val_ds)} samples")
-
-    model = ImmunoAICNN().to(device)
+    model = ImmunoAICNN(num_classes=1).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5)
 
     best_val_loss = float("inf")
+    best_val_acc = 0.0
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    print("\nStarting Training on GPU...")
+    print("=" * 65)
+    print(" Starting MS COCO Person Model Training...")
+    print("=" * 65)
     start_time = time.time()
 
     for epoch in range(1, epochs + 1):
@@ -191,50 +233,53 @@ def train_colab(data_dir: str, epochs: int = 25, batch_size: int = 32, lr: float
         is_best = epoch_val_loss < best_val_loss
         if is_best:
             best_val_loss = epoch_val_loss
-            # Save weights state dict
+            best_val_acc = epoch_val_acc
+            # Save the best model checkpoint
             torch.save(model.state_dict(), "immunoai_model.pth")
 
         elapsed = time.time() - epoch_start
         print(f"Epoch [{epoch:02d}/{epochs:02d}] "
-              f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_acc:.2f}% | "
-              f"Val Loss: {epoch_val_loss:.4f} | Val Acc: {epoch_val_acc:.2f}% | "
-              f"Time: {elapsed:.1f}s {'[BEST MODEL SAVED]' if is_best else ''}")
+              f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_acc:5.2f}% | "
+              f"Val Loss: {epoch_val_loss:.4f} | Val Acc: {epoch_val_acc:5.2f}% | "
+              f"Time: {elapsed:4.1f}s {'[BEST MODEL SAVED ⭐]' if is_best else ''}")
 
     total_time = time.time() - start_time
-    print(f"\nTraining completed in {total_time/60:.2f} mins! Best Val Loss: {best_val_loss:.4f}")
+    print("=" * 65)
+    print(f"Training Complete in {total_time/60:.2f} mins! Best Val Acc: {best_val_acc:.2f}% | Best Val Loss: {best_val_loss:.4f}")
+    print("=" * 65)
 
-    # Plot & Save Curves
+    # Plot & Save Evaluation Curves for Viva Presentation
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     epochs_range = range(1, epochs + 1)
-    ax1.plot(epochs_range, train_losses, 'o-', color='#E88338', label='Train Loss')
-    ax1.plot(epochs_range, val_losses, 's--', color='#22C55E', label='Val Loss')
-    ax1.set_title('Binary Cross Entropy Loss')
+    ax1.plot(epochs_range, train_losses, 'o-', color='#E88338', label='Train Loss', linewidth=2)
+    ax1.plot(epochs_range, val_losses, 's--', color='#22C55E', label='Val Loss', linewidth=2)
+    ax1.set_title('Binary Cross Entropy Loss (MS COCO Person)', fontsize=12, fontweight='bold')
     ax1.set_xlabel('Epochs')
     ax1.set_ylabel('Loss')
     ax1.legend()
     ax1.grid(True, linestyle=':', alpha=0.6)
 
-    ax2.plot(epochs_range, train_accs, 'o-', color='#3B82F6', label='Train Accuracy (%)')
-    ax2.plot(epochs_range, val_accs, 's--', color='#10B981', label='Val Accuracy (%)')
-    ax2.set_title('Detection Accuracy (%)')
+    ax2.plot(epochs_range, train_accs, 'o-', color='#3B82F6', label='Train Accuracy (%)', linewidth=2)
+    ax2.plot(epochs_range, val_accs, 's--', color='#10B981', label='Val Accuracy (%)', linewidth=2)
+    ax2.set_title('Intruder Detection Accuracy (%)', fontsize=12, fontweight='bold')
     ax2.set_xlabel('Epochs')
-    ax2.set_ylabel('Accuracy')
+    ax2.set_ylabel('Accuracy (%)')
+    ax2.set_ylim([0, 105])
     ax2.legend()
     ax2.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
     plt.savefig("evaluation_curves.png", dpi=200)
     plt.show()
 
-    # Automatic Download from Colab to local laptop
+    # Automatically trigger download of trained model & graphs to your laptop
     try:
         from google.colab import files
-        print("Downloading trained weights & evaluation curves to your computer...")
+        print("\n⬇️ Downloading immunoai_model.pth and evaluation_curves.png to your laptop...")
         files.download("immunoai_model.pth")
         files.download("evaluation_curves.png")
     except Exception:
-        print("Files saved to current Colab workspace: immunoai_model.pth, evaluation_curves.png")
+        print("\nFiles saved in Colab workspace: immunoai_model.pth, evaluation_curves.png")
 
 
 if __name__ == "__main__":
-    # Example: replace './data' with the extracted dataset path from Kaggle
-    train_colab(data_dir="./data", epochs=25, batch_size=32)
+    train_coco_person(data_dir="./coco_person_data", epochs=20, batch_size=32, lr=0.001)

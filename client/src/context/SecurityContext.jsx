@@ -74,6 +74,46 @@ export const SecurityProvider = ({ children }) => {
   // Real Captured Intruders Snapshot Gallery (Starts 100% empty, populated only by real camera captures)
   const [capturedIntruders, setCapturedIntruders] = useState([]);
 
+  // Live Deep Learning Telemetry & Mini Logs for Sidebar Monitor
+  const [dlTelemetry, setDlTelemetry] = useState({
+    prob: 0,
+    confidence: 0,
+    logit: 0,
+    is_intruder: false,
+    consecutive_frames: 0,
+    required_frames: 5,
+    in_cooldown: false,
+    cooldown_remaining_seconds: 0,
+    inference_ms: 0,
+    recentLogs: [],
+    lastUpdated: 0,
+  });
+
+  const updateDlTelemetry = (data) => {
+    if (!data) return;
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const probVal = data.prob !== undefined ? data.prob : (data.confidence ? data.confidence / 100 : 0);
+    const confPercent = (probVal * 100).toFixed(1);
+    const count = data.consecutive_frames || 0;
+    const isAlert = data.is_intruder;
+
+    const logLine = `${nowTime} | P:${confPercent}% | C:${count}/5 | ${isAlert ? '🚨POS' : '✅NORM'}`;
+
+    setDlTelemetry((prev) => ({
+      prob: probVal,
+      confidence: confPercent,
+      logit: data.logit || 0,
+      is_intruder: Boolean(isAlert),
+      consecutive_frames: count,
+      required_frames: data.required_frames || 5,
+      in_cooldown: Boolean(data.in_cooldown),
+      cooldown_remaining_seconds: data.cooldown_remaining_seconds || 0,
+      inference_ms: data.inference_ms || 18,
+      recentLogs: [logLine, ...(prev.recentLogs || [])].slice(0, 4),
+      lastUpdated: Date.now(),
+    }));
+  };
+
   // Backend connection status
   const [backendStatus, setBackendStatus] = useState({
     online: false,
@@ -308,6 +348,8 @@ export const SecurityProvider = ({ children }) => {
         backendStatus,
         confidenceThreshold,
         setConfidenceThreshold,
+        dlTelemetry,
+        updateDlTelemetry,
       }}
     >
       {children}

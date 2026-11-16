@@ -14,6 +14,7 @@ export const LiveStreamPlayer = () => {
     activeAlert,
     dismissAlert,
     triggerIntruderAlert,
+    updateDlTelemetry,
     backendStatus,
   } = useSecurity();
 
@@ -110,6 +111,16 @@ export const LiveStreamPlayer = () => {
         const base64Image = canvas.toDataURL('image/jpeg', 0.70);
         isSending = true;
         const res = await apiDetectFrame(base64Image);
+
+        // Update Sidebar Live Monitor & Log to Browser Console
+        if (res) {
+          updateDlTelemetry(res);
+          console.log(
+            `%c[ImmunoAI DL]%c Prob: ${(res.confidence ?? (res.prob ? res.prob * 100 : 0))}% | Logit: ${res.logit ?? 'N/A'} | Frames: ${res.consecutive_frames ?? 0}/5 | Latency: ${res.inference_ms ?? 0}ms`,
+            'color: #f97316; font-weight: bold;',
+            'color: #22c55e; font-weight: 500;'
+          );
+        }
 
         // Fail-safe immediate alert trigger if confirmed by 5 continuous frames
         if (res?.alert_triggered && res?.new_incident) {
