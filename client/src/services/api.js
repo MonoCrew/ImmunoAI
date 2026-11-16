@@ -63,6 +63,25 @@ export const apiDetectFrame = async (base64Image) => {
   }
 };
 
+// AI Engine toggle API ('yolo' vs 'custom')
+export const apiGetEngine = async () => {
+  try {
+    const res = await client.get('/api/model/engine');
+    return res.data;
+  } catch {
+    return { active_engine: 'yolo', yolo_available: true };
+  }
+};
+
+export const apiSetEngine = async (engine) => {
+  try {
+    const res = await client.post('/api/model/engine', { engine });
+    return res.data;
+  } catch (err) {
+    return { error: err.message };
+  }
+};
+
 // Intruder Snapshots API
 export const apiGetSnapshots = async () => {
   try {

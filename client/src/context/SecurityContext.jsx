@@ -4,6 +4,8 @@ import {
   checkBackendHealth,
   createAlertWebSocket,
   apiGetSnapshots,
+  apiGetEngine,
+  apiSetEngine,
   API_BASE_URL
 } from '../services/api';
 import {
@@ -74,6 +76,23 @@ export const SecurityProvider = ({ children }) => {
   // Real Captured Intruders Snapshot Gallery (Starts 100% empty, populated only by real camera captures)
   const [capturedIntruders, setCapturedIntruders] = useState([]);
 
+  // AI Engine State ('yolo' = YOLOv8 MS COCO, 'custom' = ImmunoAICNN PyTorch)
+  const [activeEngine, setActiveEngine] = useState('yolo');
+
+  const switchEngine = async (targetEngine) => {
+    const next = targetEngine || (activeEngine === 'yolo' ? 'custom' : 'yolo');
+    playClickSound();
+    setActiveEngine(next);
+    try {
+      const res = await apiSetEngine(next);
+      if (res?.active_engine) {
+        setActiveEngine(res.active_engine);
+      }
+    } catch (e) {
+      console.error('Failed to switch AI engine', e);
+    }
+  };
+
   // Live Deep Learning Telemetry & Mini Logs for Sidebar Monitor
   const [dlTelemetry, setDlTelemetry] = useState({
     prob: 0,
@@ -85,6 +104,8 @@ export const SecurityProvider = ({ children }) => {
     in_cooldown: false,
     cooldown_remaining_seconds: 0,
     inference_ms: 0,
+    engine: 'yolo',
+    model: 'YOLOv8n (MS COCO)',
     recentLogs: [],
     lastUpdated: 0,
   });
@@ -96,8 +117,13 @@ export const SecurityProvider = ({ children }) => {
     const confPercent = (probVal * 100).toFixed(1);
     const count = data.consecutive_frames || 0;
     const isAlert = data.is_intruder;
+    const engTag = (data.engine || activeEngine || 'yolo').toUpperCase();
 
-    const logLine = `${nowTime} | P:${confPercent}% | C:${count}/5 | ${isAlert ? '🚨POS' : '✅NORM'}`;
+    const logLine = `${nowTime} [${engTag}] P:${confPercent}% | C:${count}/5 | ${isAlert ? '🚨POS' : '✅NORM'}`;
+
+    if (data.engine && data.engine !== activeEngine) {
+      setActiveEngine(data.engine);
+    }
 
     setDlTelemetry((prev) => ({
       prob: probVal,
@@ -109,7 +135,9 @@ export const SecurityProvider = ({ children }) => {
       in_cooldown: Boolean(data.in_cooldown),
       cooldown_remaining_seconds: data.cooldown_remaining_seconds || 0,
       inference_ms: data.inference_ms || 18,
-      recentLogs: [logLine, ...(prev.recentLogs || [])].slice(0, 4),
+      engine: data.engine || prev.engine || 'yolo',
+      model: data.model || prev.model || 'YOLOv8n (MS COCO)',
+      ai_service_online: data.ai_service_online !== undefined ? data.ai_service_online : true,
       lastUpdated: Date.now(),
     }));
   };
@@ -284,6 +312,10 @@ export const SecurityProvider = ({ children }) => {
         if (mounted && Array.isArray(snaps)) {
           setCapturedIntruders(snaps);
         }
+        const engData = await apiGetEngine();
+        if (mounted && engData?.active_engine) {
+          setActiveEngine(engData.active_engine);
+        }
       } else {
         setBackendStatus((prev) => ({
           ...prev,
@@ -301,6 +333,8 @@ export const SecurityProvider = ({ children }) => {
       (data) => {
         if (data.type === 'INTRUDER_DETECTED') {
           triggerIntruderAlert(data);
+        } else if (data.type === 'ENGINE_CHANGED' && data.active_engine) {
+          setActiveEngine(data.active_engine);
         }
       },
       (status) => {
@@ -350,6 +384,8 @@ export const SecurityProvider = ({ children }) => {
         setConfidenceThreshold,
         dlTelemetry,
         updateDlTelemetry,
+        activeEngine,
+        switchEngine,
       }}
     >
       {children}

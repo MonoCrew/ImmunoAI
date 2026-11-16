@@ -55,64 +55,66 @@ export const CapturedIntruders = () => {
         </div>
       </div>
 
-      {/* Snapshot Gallery Strip */}
-      <div className="intruders-gallery-grid">
-        {capturedIntruders.length === 0 ? (
-          <div className="empty-intruders-placeholder">
-            <Camera size={28} className="text-muted" />
-            <p>No intruder breaches captured yet.</p>
-            <span>Ensure Protection Mode is ARMED to log detected intrusions.</span>
-          </div>
-        ) : (
-          capturedIntruders.map((item) => (
-            <div
-              key={item.id}
-              className="intruder-snapshot-card"
-              onClick={() => setSelectedSnapshot(item)}
-              role="button"
-              tabIndex={0}
-              title="Click to inspect detection metadata"
-            >
-              {/* Image Preview & Bounding Box Overlay */}
-              <div className="snapshot-media-box">
-                <img
-                  src={item.image}
-                  alt={`Intruder detected at ${item.timestamp}`}
-                  className="snapshot-img"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src =
-                      'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=600&auto=format&fit=crop&q=80';
-                  }}
-                />
-
-                {/* AI Detection Pill Overlay */}
-                <div className="snapshot-ai-badge">
-                  <span className="ai-dot-pulse"></span>
-                  <span className="ai-badge-label">INTRUDER</span>
-                  <span className="ai-badge-conf">{item.confidence}</span>
-                </div>
-
-                {/* Inspect Button Icon */}
-                <div className="snapshot-inspect-hint">
-                  <Maximize2 size={13} />
-                </div>
-              </div>
-
-              {/* Snapshot Meta Details */}
-              <div className="snapshot-card-meta">
-                <div className="snapshot-time-row">
-                  <Clock size={11} className="time-icon" />
-                  <span className="snapshot-time">{item.timestamp}</span>
-                </div>
-                <div className="snapshot-camera-name">{item.camera}</div>
-                <div className="snapshot-threat-pill">
-                  <span>🚨 {item.threatLevel}</span>
-                </div>
-              </div>
+      {/* Scrollable Snapshot Gallery (Contained for Single-Page Application Layout) */}
+      <div className="intruders-gallery-scroll-container">
+        <div className="intruders-gallery-grid">
+          {capturedIntruders.length === 0 ? (
+            <div className="empty-intruders-placeholder">
+              <Camera size={28} className="text-muted" />
+              <p>No intruder breaches captured yet.</p>
+              <span>Ensure Protection Mode is ARMED to log detected intrusions.</span>
             </div>
-          ))
-        )}
+          ) : (
+            capturedIntruders.map((item) => (
+              <div
+                key={item.id}
+                className="intruder-snapshot-card"
+                onClick={() => setSelectedSnapshot(item)}
+                role="button"
+                tabIndex={0}
+                title="Click to inspect detection metadata"
+              >
+                {/* Image Preview & Bounding Box Overlay */}
+                <div className="snapshot-media-box">
+                  <img
+                    src={item.image}
+                    alt={`Intruder detected at ${item.timestamp}`}
+                    className="snapshot-img"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src =
+                        'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=600&auto=format&fit=crop&q=80';
+                    }}
+                  />
+
+                  {/* AI Detection Pill Overlay */}
+                  <div className="snapshot-ai-badge">
+                    <span className="ai-dot-pulse"></span>
+                    <span className="ai-badge-label">INTRUDER</span>
+                    <span className="ai-badge-conf">{item.confidence}</span>
+                  </div>
+
+                  {/* Inspect Button Icon */}
+                  <div className="snapshot-inspect-hint">
+                    <Maximize2 size={13} />
+                  </div>
+                </div>
+
+                {/* Snapshot Meta Details */}
+                <div className="snapshot-card-meta">
+                  <div className="snapshot-time-row">
+                    <Clock size={11} className="time-icon" />
+                    <span className="snapshot-time">{item.timestamp}</span>
+                  </div>
+                  <div className="snapshot-camera-name">{item.camera}</div>
+                  <div className="snapshot-threat-pill">
+                    <span>🚨 {item.threatLevel}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* High-Resolution Inspection Modal */}

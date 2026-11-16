@@ -34,6 +34,17 @@ class MiniServerHandler(BaseHTTPRequestHandler):
             self.end_headers()
             status = predictor.get_status()
             self.wfile.write(json.dumps(status).encode("utf-8"))
+        elif clean_path == "/engine":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            data = {
+                "active_engine": predictor.get_active_engine(),
+                "yolo_available": predictor.HAS_YOLO,
+                "model": "YOLOv8n (MS COCO)" if predictor.get_active_engine() == "yolo" else "ImmunoAICNN (PyTorch)",
+            }
+            self.wfile.write(json.dumps(data).encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
@@ -72,6 +83,30 @@ class MiniServerHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps(result).encode("utf-8"))
 
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        elif clean_path == "/engine":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body) if body else {}
+                engine_name = payload.get("engine", "")
+                active = predictor.set_engine(engine_name)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "active_engine": active,
+                    "yolo_available": predictor.HAS_YOLO,
+                    "model": "YOLOv8n (MS COCO)" if active == "yolo" else "ImmunoAICNN (PyTorch)"
+                }).encode("utf-8"))
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")

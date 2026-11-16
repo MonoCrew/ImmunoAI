@@ -145,6 +145,46 @@ app.get('/api/intruders/snapshots', (req, res) => {
   res.json(incidents);
 });
 
+// AI Engine toggle endpoints (YOLO vs Custom CNN)
+app.get('/api/model/engine', async (req, res) => {
+  try {
+    const response = await fetch(`${PYTHON_AI_URL}/engine`, { signal: AbortSignal.timeout(2000) });
+    if (response.ok) {
+      const data = await response.json();
+      return res.json(data);
+    }
+  } catch (err) {
+    // fallback
+  }
+  res.json({ active_engine: 'yolo', yolo_available: true, model: 'YOLOv8n (MS COCO)' });
+});
+
+app.post('/api/model/engine', async (req, res) => {
+  const { engine } = req.body;
+  try {
+    const response = await fetch(`${PYTHON_AI_URL}/engine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine }),
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      broadcast({
+        type: 'ENGINE_CHANGED',
+        active_engine: data.active_engine,
+        model: data.model,
+      });
+      console.log(`[AI Engine] Active engine set to: ${data.active_engine.toUpperCase()} (${data.model})`);
+      return res.json(data);
+    }
+  } catch (err) {
+    console.error('[AI Engine Switch Error]', err.message);
+    return res.status(500).json({ error: 'Failed to switch engine on Python AI server' });
+  }
+  res.status(500).json({ error: 'Python AI server rejected engine switch' });
+});
+
 // Detection endpoint: UI sends base64 frame string here
 app.post('/api/detect', async (req, res) => {
   const { image } = req.body;

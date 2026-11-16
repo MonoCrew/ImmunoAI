@@ -3,7 +3,8 @@ import {
   Maximize2,
   Camera,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 import { apiDetectFrame } from '../services/api';
@@ -15,11 +16,13 @@ export const LiveStreamPlayer = () => {
     dismissAlert,
     triggerIntruderAlert,
     updateDlTelemetry,
+    dlTelemetry,
     backendStatus,
   } = useSecurity();
 
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
   const [mediaStream, setMediaStream] = useState(null);
+  const [liveBox, setLiveBox] = useState(null);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
@@ -115,8 +118,23 @@ export const LiveStreamPlayer = () => {
         // Update Sidebar Live Monitor & Log to Browser Console
         if (res) {
           updateDlTelemetry(res);
+          if (res.is_intruder && res.box) {
+            setLiveBox({
+              x: res.box[0],
+              y: res.box[1],
+              w: res.box[2],
+              h: res.box[3],
+              label: (res.consecutive_frames ?? 0) >= 5 ? 'INTRUDER' : (res.engine === 'yolo' ? 'TARGET ACQUIRED' : 'ANALYZING'),
+              confidence: res.confidence,
+              isConfirmed: (res.consecutive_frames ?? 0) >= 5,
+              frames: res.consecutive_frames ?? 0,
+            });
+          } else {
+            setLiveBox(null);
+          }
+
           console.log(
-            `%c[ImmunoAI DL]%c Prob: ${(res.confidence ?? (res.prob ? res.prob * 100 : 0))}% | Logit: ${res.logit ?? 'N/A'} | Frames: ${res.consecutive_frames ?? 0}/5 | Latency: ${res.inference_ms ?? 0}ms`,
+            `%c[ImmunoAI DL]%c [${(res.engine || 'yolo').toUpperCase()}] Conf: ${(res.confidence ?? 0)}% | Logit: ${res.logit ?? 'N/A'} | Frames: ${res.consecutive_frames ?? 0}/5 | Latency: ${res.inference_ms ?? 0}ms`,
             'color: #f97316; font-weight: bold;',
             'color: #22c55e; font-weight: 500;'
           );
@@ -136,6 +154,13 @@ export const LiveStreamPlayer = () => {
     return () => clearInterval(interval);
   }, [protectionMode, hasCameraAccess, triggerIntruderAlert]);
 
+  // Clear live box if protection mode disarmed
+  useEffect(() => {
+    if (!protectionMode) {
+      setLiveBox(null);
+    }
+  }, [protectionMode]);
+
   const handleDismissAlert = () => {
     dismissAlert();
   };
@@ -150,7 +175,7 @@ export const LiveStreamPlayer = () => {
     }
   };
 
-  // Active displayed bounding boxes (from backend WebSocket / context alert)
+  // Active displayed bounding boxes (live tracking box + confirmed alert boxes)
   const displayBoxes =
     activeAlert && protectionMode
       ? [
@@ -159,9 +184,23 @@ export const LiveStreamPlayer = () => {
             y: activeAlert.box?.[1] ?? 25,
             w: activeAlert.box?.[2] ?? 25,
             h: activeAlert.box?.[3] ?? 50,
-            label: 'INTRUDER',
+            label: 'INTRUDER CONFIRMED',
             confidence: activeAlert.confidence || '97.2',
-            trackingId: activeAlert.id ? String(activeAlert.id).slice(-4) : '1042',
+            trackingId: activeAlert.id ? String(activeAlert.id).slice(-4) : 'ALERT',
+            isConfirmed: true,
+          },
+        ]
+      : protectionMode && liveBox
+      ? [
+          {
+            x: liveBox.x,
+            y: liveBox.y,
+            w: liveBox.w,
+            h: liveBox.h,
+            label: `${liveBox.label} (${liveBox.frames}/5)`,
+            confidence: liveBox.confidence,
+            trackingId: 'SCAN',
+            isConfirmed: liveBox.isConfirmed,
           },
         ]
       : [];
@@ -200,7 +239,7 @@ export const LiveStreamPlayer = () => {
           {displayBoxes.map((box, index) => (
             <div
               key={index}
-              className="bounding-box intruder-box"
+              className={`bounding-box ${box.isConfirmed ? 'intruder-box' : 'live-tracking-box'}`}
               style={{
                 left: `${box.x}%`,
                 top: `${box.y}%`,
@@ -214,8 +253,8 @@ export const LiveStreamPlayer = () => {
               <div className="box-corner br"></div>
 
               {/* Tag Header */}
-              <div className="box-tag intruder">
-                <span className="pulse-danger"></span>
+              <div className={`box-tag ${box.isConfirmed ? 'intruder' : 'tracking'}`}>
+                <span className={box.isConfirmed ? 'pulse-danger' : 'pulse-warning'}></span>
                 <strong>{box.label}</strong>
                 <span className="box-conf">{box.confidence}%</span>
               </div>
@@ -238,13 +277,26 @@ export const LiveStreamPlayer = () => {
             </div>
           )}
 
+          {/* AI Server Offline Helper Banner (Shows helpful guidance instead of an ugly crash) */}
+          {protectionMode && dlTelemetry?.ai_service_online === false && (
+            <div className="ai-offline-watermark">
+              <AlertTriangle size={18} className="text-amber" />
+              <div>
+                <strong>AI Inference Server Offline (Port 5001)</strong>
+                <p>Start Python server: <code>cd server/ai_service/mini_server && python server.py</code></p>
+              </div>
+            </div>
+          )}
+
           {/* Active Intruder Alert Banner Overlay */}
           {activeAlert && (
             <div className="stream-alert-banner">
               <div className="alert-banner-left">
-                <ShieldAlert size={22} className="alert-siren-icon text-red" />
+                <div className="alert-siren-icon">
+                  <ShieldAlert size={20} />
+                </div>
                 <div>
-                  <h4 className="alert-banner-title">INTRUDER DETECTED IN CAMERA FEED!</h4>
+                  <h4 className="alert-banner-title">INTRUDER CONFIRMED IN CAMERA FEED</h4>
                   <p className="alert-banner-sub">
                     Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at{' '}
                     {activeAlert.timestamp}
@@ -252,7 +304,7 @@ export const LiveStreamPlayer = () => {
                 </div>
               </div>
               <button className="dismiss-alert-btn" onClick={handleDismissAlert} type="button">
-                Dismiss Alert
+                Acknowledge Threat
               </button>
             </div>
           )}

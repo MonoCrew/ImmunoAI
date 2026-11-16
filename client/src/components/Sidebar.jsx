@@ -10,7 +10,7 @@ import {
 import { useSecurity } from '../context/useSecurity';
 
 export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onToggleExpand }) => {
-  const { protectionMode, dlTelemetry } = useSecurity();
+  const { protectionMode, dlTelemetry, activeEngine, switchEngine } = useSecurity();
 
   const navItems = [
     { id: 'dashboard', icon: LayoutGrid, label: 'Dashboard' },
@@ -95,6 +95,26 @@ export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onTo
             </span>
           </div>
 
+          {/* Engine Selector (Dual Engine: YOLO vs Custom CNN) */}
+          <div className="ai-engine-selector-bar">
+            <button
+              type="button"
+              className={`ai-engine-pill ${activeEngine === 'yolo' ? 'active-yolo' : ''}`}
+              onClick={() => switchEngine('yolo')}
+              title="Version 1: Pretrained YOLOv8 (COCO) — 95%+ Accuracy & Bounding Boxes"
+            >
+              ⚡ YOLOv8 (Easy)
+            </button>
+            <button
+              type="button"
+              className={`ai-engine-pill ${activeEngine === 'custom' ? 'active-custom' : ''}`}
+              onClick={() => switchEngine('custom')}
+              title="Version 2: Custom ImmunoAICNN — Term Project Architecture"
+            >
+              🔬 Custom CNN
+            </button>
+          </div>
+
           <div className="ai-telemetry-body">
             <div className="ai-metric-row">
               <span className="ai-metric-label">Probability</span>
@@ -125,29 +145,16 @@ export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onTo
                 <span className="stat-v">{dlTelemetry.inference_ms}ms</span>
               </div>
             </div>
-
-            {/* Live Mini Log Ticker */}
-            <div className="ai-mini-log-ticker">
-              {protectionMode && dlTelemetry.recentLogs && dlTelemetry.recentLogs.length > 0 ? (
-                dlTelemetry.recentLogs.map((log, idx) => (
-                  <div key={idx} className="ai-mini-log-item">
-                    {log}
-                  </div>
-                ))
-              ) : (
-                <div className="ai-mini-log-empty">
-                  {protectionMode ? 'Listening to camera...' : 'Protection Mode Standby'}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       ) : (
         <div
           className="sidebar-collapsed-ai-badge"
-          title={`AI Probability: ${dlTelemetry.confidence}% | Frames: ${dlTelemetry.consecutive_frames}/5`}
+          onClick={() => switchEngine()}
+          title={`Engine: ${activeEngine.toUpperCase()} | Click to toggle | Prob: ${dlTelemetry.confidence}%`}
         >
           <Cpu size={16} className={protectionMode ? 'text-orange' : 'text-muted'} />
+          <span className="collapsed-engine-tag">{activeEngine.toUpperCase()}</span>
           <span className="collapsed-prob-text">{protectionMode ? `${Math.round(dlTelemetry.confidence)}%` : 'OFF'}</span>
         </div>
       )}

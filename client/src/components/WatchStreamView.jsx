@@ -178,9 +178,11 @@ export const WatchStreamView = () => {
           {activeAlert && (
             <div className="stream-alert-banner">
               <div className="alert-banner-left">
-                <ShieldAlert size={22} className="alert-siren-icon text-red" />
+                <div className="alert-siren-icon">
+                  <ShieldAlert size={20} />
+                </div>
                 <div>
-                  <h4 className="alert-banner-title">INTRUDER DETECTED IN CAMERA FEED!</h4>
+                  <h4 className="alert-banner-title">INTRUDER CONFIRMED IN CAMERA FEED</h4>
                   <p className="alert-banner-sub">
                     Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at{' '}
                     {activeAlert.timestamp}
@@ -188,7 +190,7 @@ export const WatchStreamView = () => {
                 </div>
               </div>
               <button className="dismiss-alert-btn" onClick={handleDismissAlert} type="button">
-                Dismiss Alert
+                Acknowledge Threat
               </button>
             </div>
           )}

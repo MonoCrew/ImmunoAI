@@ -1,4 +1,4 @@
-import { ShieldAlert, VolumeX, X } from 'lucide-react';
+import { ShieldAlert, Volume2, VolumeX, CheckCircle } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 
 export const IntruderAlertBanner = () => {
@@ -7,47 +7,58 @@ export const IntruderAlertBanner = () => {
   if (!activeAlert) return null;
 
   return (
-    <div className="floating-intruder-alert">
+    <aside className="floating-intruder-alert" aria-label="Security Emergency Alert">
       <div className="alert-content-box">
+        {/* Sleek Glowing Shield Indicator */}
         <div className="alert-flashing-icon">
-          <ShieldAlert size={28} />
+          <ShieldAlert size={22} />
         </div>
 
+        {/* Informational Group */}
         <div className="alert-text-group">
           <div className="alert-head-line">
             <span className="danger-pill">HIGH ALERT</span>
-            <span className="alert-head-title">INTRUDER DETECTED</span>
+            <span className="alert-head-title">INTRUDER CONFIRMED</span>
+            <span className="alert-time-tag">{activeAlert.timestamp}</span>
           </div>
+
           <div className="alert-details">
-            Unauthorized individual identified in <strong>{activeAlert.location}</strong> ({activeAlert.cameraName}) at {activeAlert.timestamp}.
+            Unauthorized individual identified via <strong>{activeAlert.cameraName || 'Attached System Camera'}</strong>.
           </div>
-          <div className="alert-confidence-tag">
-            Deep Learning Model Confidence: <strong>{activeAlert.confidence}%</strong>
+
+          <div className="alert-meta-chips">
+            <span className="alert-chip confidence-chip">
+              Confidence: <strong>{activeAlert.confidence}%</strong>
+            </span>
+            <span className="alert-chip location-chip">
+              Zone: <strong>{activeAlert.location || 'Monitored Perimeter'}</strong>
+            </span>
           </div>
         </div>
 
+        {/* Quick Response Actions */}
         <div className="alert-actions-group">
           <button
-            className="alert-btn mute-btn"
+            className={`alert-btn mute-btn ${isMutedState ? 'is-muted' : ''}`}
             onClick={toggleMute}
-            title={isMutedState ? 'Unmute Siren' : 'Mute Siren'}
+            title={isMutedState ? 'Unmute Siren Audio' : 'Silence Siren Audio'}
             type="button"
           >
-            <VolumeX size={16} />
-            <span>{isMutedState ? 'Unmuted' : 'Mute Siren'}</span>
+            {isMutedState ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            <span>{isMutedState ? 'Unmute' : 'Silence'}</span>
           </button>
 
           <button
             className="alert-btn dismiss-btn"
             onClick={dismissAlert}
-            title="Acknowledge and Dismiss Threat"
+            title="Acknowledge Threat and Dismiss Alert"
             type="button"
           >
-            <X size={16} />
-            <span>Dismiss</span>
+            <CheckCircle size={14} />
+            <span>Acknowledge</span>
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
