@@ -1,8 +1,7 @@
 import {
   LayoutGrid,
   Video,
-  Settings,
-  LogOut,
+  Images,
   ChevronLeft,
   ChevronRight,
   Cpu,
@@ -15,6 +14,7 @@ export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onTo
   const navItems = [
     { id: 'dashboard', icon: LayoutGrid, label: 'Dashboard' },
     { id: 'stream', icon: Video, label: 'Watch Stream' },
+    { id: 'snapshots', icon: Images, label: 'Snapshots' },
   ];
 
   return (
@@ -158,31 +158,6 @@ export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onTo
           <span className="collapsed-prob-text">{protectionMode ? `${Math.round(dlTelemetry.confidence)}%` : 'OFF'}</span>
         </div>
       )}
-
-      {/* Footer Navigation (Settings & Logout) */}
-      <div className="sidebar-footer">
-        <button
-          className={`nav-btn footer-btn ${activeTab === 'settings' ? 'active' : ''} ${
-            isExpanded ? 'expanded-btn' : ''
-          }`}
-          title={!isExpanded ? 'Settings' : undefined}
-          type="button"
-          onClick={() => onSelectTab && onSelectTab('settings')}
-        >
-          <Settings size={20} strokeWidth={1.8} className="nav-icon" />
-          {isExpanded && <span className="nav-label">Settings</span>}
-        </button>
-
-        <button
-          className={`nav-btn footer-btn logout-btn ${isExpanded ? 'expanded-btn' : ''}`}
-          title={!isExpanded ? 'Log Out' : undefined}
-          type="button"
-          onClick={() => alert('Security Admin Session is Active')}
-        >
-          <LogOut size={20} strokeWidth={1.8} className="nav-icon" />
-          {isExpanded && <span className="nav-label">Log Out</span>}
-        </button>
-      </div>
     </aside>
   );
 };

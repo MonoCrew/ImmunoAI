@@ -12,15 +12,22 @@ import {
 import { useSecurity } from '../context/useSecurity';
 
 export const CapturedIntruders = () => {
-  const { capturedIntruders } = useSecurity();
+  const { capturedIntruders, refreshSnapshots, backendStatus } = useSecurity();
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
+    if (typeof refreshSnapshots === 'function') {
+      try {
+        await refreshSnapshots();
+      } catch (err) {
+        console.error('Failed to sync snapshots', err);
+      }
+    }
     setTimeout(() => {
       setIsRefreshing(false);
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -168,7 +175,7 @@ export const CapturedIntruders = () => {
                   </div>
                   <div className="inspect-meta-item">
                     <span className="meta-label">Detection Model</span>
-                    <span className="meta-value">YOLOv8-Custom (PyTorch)</span>
+                    <span className="meta-value">{backendStatus?.model || 'ImmunoAICNN (PyTorch)'}</span>
                   </div>
                 </div>
 
@@ -177,15 +184,14 @@ export const CapturedIntruders = () => {
                   <p>{selectedSnapshot.details}</p>
                 </div>
 
-                {/* Developer Integration Callout for Backend AI agent */}
+                {/* Storage Telemetry Callout */}
                 <div className="backend-integration-note">
                   <div className="note-header">
                     <ExternalLink size={13} />
-                    <span>Backend Developer Notice:</span>
+                    <span>Evidence Storage Notice:</span>
                   </div>
                   <p>
-                    Snapshots will be fetched from <code>GET /api/intruders/snapshots</code> and stored
-                    on disk by the FastAPI/Django server when inference detects an unauthorized person.
+                    Snapshots are securely stored in <code>server/snapshots/</code> and synchronized chronologically (newest first) with the defense hub.
                   </p>
                 </div>
 

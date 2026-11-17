@@ -514,7 +514,18 @@ export const SecurityProvider = ({ children }) => {
     setMembers((prev) => [...prev, newMember]);
   };
 
-  // Check backend health periodically
+  const refreshSnapshots = useCallback(async () => {
+    try {
+      const snaps = await apiGetSnapshots();
+      if (Array.isArray(snaps)) {
+        setCapturedIntruders(snaps);
+      }
+    } catch (e) {
+      console.warn('Failed to refresh snapshots', e);
+    }
+  }, []);
+
+  // Check backend health periodically and sync snapshots
   useEffect(() => {
     let mounted = true;
 
@@ -529,10 +540,7 @@ export const SecurityProvider = ({ children }) => {
           fps: res.data?.fps || 30,
           model: res.data?.model || 'ImmunoAICNN (PyTorch)',
         });
-        const snaps = await apiGetSnapshots();
-        if (mounted && Array.isArray(snaps)) {
-          setCapturedIntruders(snaps);
-        }
+        await refreshSnapshots();
         const engData = await apiGetEngine();
         if (mounted && engData?.active_engine) {
           setActiveEngine(engData.active_engine);
@@ -613,6 +621,7 @@ export const SecurityProvider = ({ children }) => {
         removeStream,
         capturedIntruders,
         setCapturedIntruders,
+        refreshSnapshots,
         backendStatus,
         confidenceThreshold,
         setConfidenceThreshold,

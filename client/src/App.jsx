@@ -14,6 +14,7 @@ import { StreamManagerCard } from './components/StreamManagerCard';
 import { CapturedIntruders } from './components/CapturedIntruders';
 import { IntruderAlertBanner } from './components/IntruderAlertBanner';
 import { WatchStreamView } from './components/WatchStreamView';
+import { SnapshotsGalleryView } from './components/SnapshotsGalleryView';
 import { SettingsView } from './components/SettingsView';
 import './App.css';
 
@@ -58,6 +59,9 @@ function DashboardContent() {
           {activeTab === 'stream' ? (
             /* Dedicated Watch Stream View */
             <WatchStreamView />
+          ) : activeTab === 'snapshots' ? (
+            /* Open Snapshots Archive View */
+            <SnapshotsGalleryView />
           ) : activeTab === 'settings' ? (
             /* Functional Settings View */
             <SettingsView />

@@ -86,6 +86,8 @@ export const Header = ({ isDarkMode, onToggleTheme, activeTab = 'dashboard' }) =
     switch (activeTab) {
       case 'stream':
         return 'Live Surveillance Feed';
+      case 'snapshots':
+        return 'Intruder Snapshot Archive';
       case 'settings':
         return 'System Configuration';
       default:
