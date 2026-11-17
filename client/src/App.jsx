@@ -10,6 +10,7 @@ import {
   WifiSpeedCard,
 } from './components/SmartControlCard';
 import { WeatherCard } from './components/WeatherCard';
+import { StreamManagerCard } from './components/StreamManagerCard';
 import { CapturedIntruders } from './components/CapturedIntruders';
 import { IntruderAlertBanner } from './components/IntruderAlertBanner';
 import { WatchStreamView } from './components/WatchStreamView';
@@ -89,6 +90,9 @@ function DashboardContent() {
 
                   {/* Card 5: Weather Updates & 5-Day Forecast (IndexedDB Cached) */}
                   <WeatherCard />
+
+                  {/* Card 6: Stream & Remote Feed Manager */}
+                  <StreamManagerCard />
                 </div>
               </aside>
             </main>

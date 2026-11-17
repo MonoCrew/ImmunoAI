@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   apiSetProtectionMode,
   checkBackendHealth,
@@ -65,13 +65,193 @@ export const SecurityProvider = ({ children }) => {
     { id: 104, title: 'Auto-lock all door', time: '09:50 PM', type: 'schedule', category: 'lock' },
   ]);
 
-  // Real-time Intruder Alert state
+  // Real-time Intruder Alert state with 5-Second Auto-Acknowledgement
   const [activeAlert, setActiveAlert] = useState(null);
+  const [alertCountdown, setAlertCountdown] = useState(5);
+  const autoDismissTimerRef = useRef(null);
+  const countdownIntervalRef = useRef(null);
+
   const [notifications, setNotifications] = useState([]);
   const [isMutedState, setIsMutedState] = useState(false);
 
-  // Video feed source: direct camera
+  // Centralized Hardware System Camera Management (Integrated / USB Webcam)
+  const [systemCameraStream, setSystemCameraStream] = useState(null);
+  const [hasCameraAccess, setHasCameraAccess] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [isCameraInitializing, setIsCameraInitializing] = useState(false);
+
+  const startSystemCamera = useCallback(async () => {
+    if (typeof window === 'undefined') return null;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API (getUserMedia) not supported in this browser context.');
+      setHasCameraAccess(false);
+      return null;
+    }
+
+    setIsCameraInitializing(true);
+    setCameraError(null);
+    let stream = null;
+
+    // Strategy 1: Ideal 720p HD resolution (Standard modern webcams)
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+    } catch (err1) {
+      console.info('[ImmunoAI Camera] 720p constraints failed, attempting basic video...', err1?.message);
+      // Strategy 2: Basic unconstrained video (High-compatibility for Linux V4L2 USB cameras)
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      } catch (err2) {
+        console.warn('[ImmunoAI Camera] Hardware camera access error:', err2?.name, err2?.message);
+        const errMsg =
+          err2?.name === 'NotAllowedError'
+            ? 'Camera permission denied. Click below to grant camera access.'
+            : err2?.name === 'NotFoundError'
+            ? 'No hardware camera detected on your system.'
+            : err2?.name === 'NotReadableError'
+            ? 'Camera device is busy (in use by another app or browser tab).'
+            : `Camera access notice: ${err2?.message || 'Unable to connect'}`;
+        setCameraError(errMsg);
+        setHasCameraAccess(false);
+        setIsCameraInitializing(false);
+        return null;
+      }
+    }
+
+    if (stream) {
+      setSystemCameraStream(stream);
+      setHasCameraAccess(true);
+      setCameraError(null);
+      setIsCameraInitializing(false);
+      console.log('[ImmunoAI Camera] ✅ Hardware system camera feed connected successfully.');
+      return stream;
+    }
+
+    setIsCameraInitializing(false);
+    return null;
+  }, []);
+
+  const stopSystemCamera = useCallback(() => {
+    if (systemCameraStream) {
+      systemCameraStream.getTracks().forEach((t) => t.stop());
+      setSystemCameraStream(null);
+    }
+    setHasCameraAccess(false);
+  }, [systemCameraStream]);
+
+  // Automatically start system camera feed when App initializes
+  useEffect(() => {
+    let active = true;
+    startSystemCamera().then((stream) => {
+      if (!active && stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [startSystemCamera]);
+
+  // Video feed source: direct camera vs remote streams
   const [streamSource, setStreamSource] = useState('direct');
+
+  // Video feed stream management: Local device camera vs Remote IP/network streams
+  const DEFAULT_STREAMS = [
+    {
+      id: 'local_device',
+      name: 'Attached System Camera',
+      type: 'local',
+      url: '',
+      location: 'Integrated / USB Webcam',
+      isDefault: true,
+    },
+  ];
+
+  const [streamList, setStreamList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('immunoai_stream_list');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_STREAMS;
+  });
+
+  const [activeStreamId, setActiveStreamIdState] = useState(() => {
+    try {
+      return localStorage.getItem('immunoai_active_stream_id') || 'local_device';
+    } catch {
+      return 'local_device';
+    }
+  });
+
+  const setActiveStreamId = (id) => {
+    playClickSound();
+    setActiveStreamIdState(id);
+    try {
+      localStorage.setItem('immunoai_active_stream_id', id);
+    } catch {
+      // ignore
+    }
+  };
+
+  const addRemoteStream = (newStream) => {
+    playClickSound();
+    const streamObj = {
+      id: `stream_${Date.now()}`,
+      name: (newStream.name || 'Remote Network Stream').trim(),
+      type: 'remote',
+      url: newStream.url.trim(),
+      location: (newStream.location || 'Local Network (IP Camera)').trim(),
+      format: newStream.url.includes('/video') ? 'mjpeg' : 'video',
+      addedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setStreamList((prev) => {
+      const updated = [...prev, streamObj];
+      try {
+        localStorage.setItem('immunoai_stream_list', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    setActiveStreamId(streamObj.id);
+    return streamObj;
+  };
+
+  const removeStream = (id) => {
+    playClickSound();
+    setStreamList((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      try {
+        localStorage.setItem('immunoai_stream_list', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    if (activeStreamId === id) {
+      setActiveStreamId('local_device');
+    }
+  };
+
+  const activeStream = streamList.find((s) => s.id === activeStreamId) || streamList[0] || DEFAULT_STREAMS[0];
 
   // Real Captured Intruders Snapshot Gallery (Starts 100% empty, populated only by real camera captures)
   const [capturedIntruders, setCapturedIntruders] = useState([]);
@@ -100,7 +280,7 @@ export const SecurityProvider = ({ children }) => {
     logit: 0,
     is_intruder: false,
     consecutive_frames: 0,
-    required_frames: 5,
+    required_frames: 3,
     in_cooldown: false,
     cooldown_remaining_seconds: 0,
     inference_ms: 0,
@@ -119,7 +299,7 @@ export const SecurityProvider = ({ children }) => {
     const isAlert = data.is_intruder;
     const engTag = (data.engine || activeEngine || 'yolo').toUpperCase();
 
-    const logLine = `${nowTime} [${engTag}] P:${confPercent}% | C:${count}/5 | ${isAlert ? '🚨POS' : '✅NORM'}`;
+    const logLine = `${nowTime} [${engTag}] P:${confPercent}% | C:${count}/3 | ${isAlert ? '🚨POS' : '✅NORM'}`;
 
     if (data.engine && data.engine !== activeEngine) {
       setActiveEngine(data.engine);
@@ -131,7 +311,7 @@ export const SecurityProvider = ({ children }) => {
       logit: data.logit || 0,
       is_intruder: Boolean(isAlert),
       consecutive_frames: count,
-      required_frames: data.required_frames || 5,
+      required_frames: data.required_frames || 3,
       in_cooldown: Boolean(data.in_cooldown),
       cooldown_remaining_seconds: data.cooldown_remaining_seconds || 0,
       inference_ms: data.inference_ms || 18,
@@ -220,10 +400,38 @@ export const SecurityProvider = ({ children }) => {
     }));
   };
 
-  // Trigger Intruder Alert Handler
+  // Dismiss current alert (manual click or automatic 5s expiration)
+  const dismissAlert = useCallback((isAuto = false) => {
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    if (!isAuto) {
+      playClickSound();
+    }
+    stopIntruderSiren();
+    setActiveAlert(null);
+    setAlertCountdown(5);
+  }, []);
+
+  // Trigger Intruder Alert Handler with 5s Auto-Acknowledgement
   const triggerIntruderAlert = useCallback((detection) => {
     if (!protectionMode) {
       return;
+    }
+
+    // Reset any ongoing timers
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
     }
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -242,7 +450,27 @@ export const SecurityProvider = ({ children }) => {
     };
 
     setActiveAlert(alertEvent);
+    setAlertCountdown(5);
     playIntruderAlarm(5000);
+
+    // Live countdown 5 -> 4 -> 3 -> 2 -> 1 -> 0
+    let secondsLeft = 5;
+    countdownIntervalRef.current = setInterval(() => {
+      secondsLeft -= 1;
+      setAlertCountdown(Math.max(0, secondsLeft));
+      if (secondsLeft <= 0) {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+      }
+    }, 1000);
+
+    // Auto-acknowledge after 5 seconds so surveillance stream monitoring continues automatically
+    autoDismissTimerRef.current = setTimeout(() => {
+      console.log('[ImmunoAI] ⏱️ 5s auto-acknowledgement reached. Resuming stream monitoring for next intruder.');
+      dismissAlert(true);
+    }, 5000);
 
     // Add to activity log
     setActivityLog((prev) => [
@@ -272,14 +500,7 @@ export const SecurityProvider = ({ children }) => {
       box: detection?.box || [30, 20, 35, 60],
     };
     setCapturedIntruders((prev) => [newSnapshot, ...prev]);
-  }, [protectionMode, activeCameraId, cameras]);
-
-  // Dismiss current alert
-  const dismissAlert = () => {
-    playClickSound();
-    stopIntruderSiren();
-    setActiveAlert(null);
-  };
+  }, [protectionMode, activeCameraId, cameras, dismissAlert]);
 
   // Add Enrolled Member
   const addMember = (memberData) => {
@@ -370,13 +591,26 @@ export const SecurityProvider = ({ children }) => {
         addMember,
         activityLog,
         activeAlert,
+        alertCountdown,
         triggerIntruderAlert,
         dismissAlert,
         notifications,
         isMutedState,
         toggleMute,
+        systemCameraStream,
+        hasCameraAccess,
+        cameraError,
+        isCameraInitializing,
+        startSystemCamera,
+        stopSystemCamera,
         streamSource,
         setStreamSource,
+        streamList,
+        activeStreamId,
+        setActiveStreamId,
+        activeStream,
+        addRemoteStream,
+        removeStream,
         capturedIntruders,
         setCapturedIntruders,
         backendStatus,

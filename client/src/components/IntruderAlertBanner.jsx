@@ -1,8 +1,8 @@
-import { ShieldAlert, Volume2, VolumeX, CheckCircle } from 'lucide-react';
+import { ShieldAlert, Volume2, VolumeX, CheckCircle, Clock } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 
 export const IntruderAlertBanner = () => {
-  const { activeAlert, dismissAlert, isMutedState, toggleMute } = useSecurity();
+  const { activeAlert, dismissAlert, isMutedState, toggleMute, alertCountdown } = useSecurity();
 
   if (!activeAlert) return null;
 
@@ -20,6 +20,10 @@ export const IntruderAlertBanner = () => {
             <span className="danger-pill">HIGH ALERT</span>
             <span className="alert-head-title">INTRUDER CONFIRMED</span>
             <span className="alert-time-tag">{activeAlert.timestamp}</span>
+            <span className="alert-countdown-pill" title="Auto-acknowledges to resume surveillance">
+              <Clock size={11} />
+              Auto-acknowledge: {alertCountdown}s
+            </span>
           </div>
 
           <div className="alert-details">
@@ -50,14 +54,22 @@ export const IntruderAlertBanner = () => {
 
           <button
             className="alert-btn dismiss-btn"
-            onClick={dismissAlert}
-            title="Acknowledge Threat and Dismiss Alert"
+            onClick={() => dismissAlert(false)}
+            title="Acknowledge Threat and Dismiss Alert (or wait for auto-dismiss in 5s)"
             type="button"
           >
             <CheckCircle size={14} />
-            <span>Acknowledge</span>
+            <span>Acknowledge ({alertCountdown}s)</span>
           </button>
         </div>
+      </div>
+
+      {/* 5-Second Linear Countdown Progress Bar */}
+      <div className="alert-countdown-bar-container">
+        <div
+          className="alert-countdown-bar-fill"
+          style={{ width: `${Math.max(0, (alertCountdown / 5) * 100)}%` }}
+        ></div>
       </div>
     </aside>
   );

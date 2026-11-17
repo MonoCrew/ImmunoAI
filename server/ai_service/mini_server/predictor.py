@@ -22,19 +22,59 @@ from PIL import Image
 # Ensure training_model directory is on Python path so we can import the custom architecture
 CURRENT_DIR = Path(__file__).resolve().parent
 AI_SERVICE_DIR = CURRENT_DIR.parent
-TRAINING_MODEL_DIR = AI_SERVICE_DIR / "training_model"
 SAVED_MODEL_DIR = AI_SERVICE_DIR / "saved_model"
 SNAPSHOTS_DIR = AI_SERVICE_DIR.parent / "snapshots"
 SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-
-if str(TRAINING_MODEL_DIR) not in sys.path:
-    sys.path.insert(0, str(TRAINING_MODEL_DIR))
 
 from model import ImmunoAICNN
 
 # Device Selection (GPU if available, CPU fallback)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WEIGHTS_PATH = SAVED_MODEL_DIR / "immunoai_model.pth"
+
+checkpoint_info = {
+    "loaded": False,
+    "path": None,
+    "filename": None,
+    "val_acc": None,
+    "epoch": None,
+    "architecture": "ImmunoAICNN v2 (YOLOv8-CSPDarknet Backbone)",
+}
+
+
+def find_custom_weights() -> Path | None:
+    """Finds the trained .pth weights file in saved_model or Downloads"""
+    candidates = [
+        SAVED_MODEL_DIR / "immunoai_model.pth",
+        SAVED_MODEL_DIR / "ImmunoAICNN_model.pth",
+        CURRENT_DIR / "immunoai_model.pth",
+        Path.cwd() / "immunoai_model.pth",
+    ]
+    for c in candidates:
+        if c.exists() and c.is_file():
+            return c
+
+    # Scan for any .pth in saved_model
+    if SAVED_MODEL_DIR.exists():
+        pths = sorted(list(SAVED_MODEL_DIR.glob("*.pth")), key=lambda p: p.stat().st_mtime, reverse=True)
+        if pths:
+            return pths[0]
+
+    # Check user's Downloads directory for recent Colab download
+    downloads = Path.home() / "Downloads"
+    if downloads.exists():
+        dl_candidates = [
+            downloads / "immunoai_model.pth",
+            downloads / "ImmunoAICNN_model.pth",
+            *list(downloads.glob("*immuno*.pth")),
+            *list(downloads.glob("*model*.pth")),
+        ]
+        for c in dl_candidates:
+            if c.exists() and c.is_file():
+                return c
+
+    return None
+
 
 # ==============================================================================
 # 1. Custom ImmunoAICNN Initialization
@@ -47,28 +87,51 @@ _last_weights_mtime = 0.0
 
 def check_and_reload_custom_weights(force: bool = False):
     """Dynamically reloads custom CNN weights when file is updated on disk"""
-    global _last_weights_mtime, custom_model
-    if not WEIGHTS_PATH.exists():
+    global _last_weights_mtime, custom_model, checkpoint_info
+    weights_file = find_custom_weights()
+    if not weights_file or not weights_file.exists():
         if force:
-            print(f"[Predictor Warning] No custom weights file found at {WEIGHTS_PATH.name}.")
-        return
+            print(f"[Predictor Notice] No custom .pth weights file found yet.")
+            print(f"Place 'immunoai_model.pth' into '{SAVED_MODEL_DIR}' or '{TRAINING_MODEL_DIR}'.")
+        return False
 
     try:
-        current_mtime = WEIGHTS_PATH.stat().st_mtime
+        current_mtime = weights_file.stat().st_mtime
         if force or current_mtime != _last_weights_mtime:
-            checkpoint = torch.load(str(WEIGHTS_PATH), map_location=DEVICE)
-            if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-                custom_model.load_state_dict(checkpoint["model_state_dict"])
-            elif isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-                custom_model.load_state_dict(checkpoint["state_dict"])
+            checkpoint = torch.load(str(weights_file), map_location=DEVICE)
+            state_dict = None
+            val_acc = None
+            epoch = None
+
+            if isinstance(checkpoint, dict):
+                state_dict = checkpoint.get("model_state_dict") or checkpoint.get("state_dict") or checkpoint
+                val_acc = checkpoint.get("val_acc")
+                epoch = checkpoint.get("epoch")
             else:
-                custom_model.load_state_dict(checkpoint)
+                state_dict = checkpoint
+
+            try:
+                custom_model.load_state_dict(state_dict, strict=True)
+                print(f"[Predictor Custom] ✅ Loaded weights strictly from: {weights_file.name}")
+            except Exception as strict_err:
+                print(f"[Predictor Custom] Strict load note: ({strict_err}). Attempting non-strict load...")
+                custom_model.load_state_dict(state_dict, strict=False)
+                print(f"[Predictor Custom] ✅ Loaded weights (non-strict) from: {weights_file.name}")
+
             custom_model.to(DEVICE)
             custom_model.eval()
             _last_weights_mtime = current_mtime
-            print(f"[Predictor Custom] Loaded custom CNN weights from: {WEIGHTS_PATH.name}")
+            checkpoint_info["loaded"] = True
+            checkpoint_info["path"] = str(weights_file)
+            checkpoint_info["filename"] = weights_file.name
+            checkpoint_info["val_acc"] = val_acc
+            checkpoint_info["epoch"] = epoch
+            if val_acc is not None:
+                print(f"[Predictor Custom] 🏆 Model Val Accuracy: {val_acc:.2f}% (Epoch {epoch})")
+            return True
     except Exception as e:
-        print(f"[Predictor Error] Could not load custom state dict ({e})")
+        print(f"[Predictor Error] Could not load custom state dict from {weights_file} ({e})")
+        return False
 
 
 check_and_reload_custom_weights(force=True)
@@ -233,7 +296,10 @@ def get_status() -> dict:
         "status": "online",
         "active_engine": ACTIVE_ENGINE,
         "yolo_available": HAS_YOLO,
-        "model": "YOLOv8n (MS COCO)" if ACTIVE_ENGINE == "yolo" else "ImmunoAICNN (PyTorch)",
+        "model": "YOLOv8n (MS COCO)" if ACTIVE_ENGINE == "yolo" else "ImmunoAICNN v2 (PyTorch)",
         "device": str(DEVICE),
-        "custom_weights_loaded": WEIGHTS_PATH.exists()
+        "custom_weights_loaded": checkpoint_info["loaded"],
+        "custom_weights_file": checkpoint_info["filename"],
+        "custom_val_acc": checkpoint_info["val_acc"],
+        "custom_epoch": checkpoint_info["epoch"],
     }

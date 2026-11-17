@@ -137,7 +137,7 @@ export const Sidebar = ({ activeTab = 'dashboard', onSelectTab, isExpanded, onTo
               <div className="ai-stat-item">
                 <span className="stat-k">Frames</span>
                 <span className={`stat-v ${dlTelemetry.consecutive_frames > 0 ? 'highlight' : ''}`}>
-                  {dlTelemetry.consecutive_frames}/5
+                  {dlTelemetry.consecutive_frames}/{dlTelemetry.required_frames || 3}
                 </span>
               </div>
               <div className="ai-stat-item">

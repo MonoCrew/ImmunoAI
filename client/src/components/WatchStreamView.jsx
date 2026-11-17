@@ -7,7 +7,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Video,
-  Camera
+  Camera,
+  Play,
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 
@@ -15,69 +16,39 @@ export const WatchStreamView = () => {
   const {
     protectionMode,
     activeAlert,
+    alertCountdown,
     dismissAlert,
     backendStatus,
+    activeStream,
+    systemCameraStream,
+    hasCameraAccess,
+    cameraError,
+    isCameraInitializing,
+    startSystemCamera,
   } = useSecurity();
 
-  const [hasCameraAccess, setHasCameraAccess] = useState(false);
-  const [mediaStream, setMediaStream] = useState(null);
+  const [remoteStreamError, setRemoteStreamError] = useState(false);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const remoteImgRef = useRef(null);
 
-  // Direct Attached Camera (getUserMedia)
-  useEffect(() => {
-    let localStream = null;
-    let isCancelled = false;
-
-    async function startCamera() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('getUserMedia is not supported by this browser');
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user',
-          },
-          audio: false,
-        });
-
-        if (isCancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        localStream = stream;
-        setMediaStream(stream);
-        setHasCameraAccess(true);
-      } catch (err) {
-        console.info('Direct camera stream notice:', err?.message || err);
-        setHasCameraAccess(false);
-      }
-    }
-
-    startCamera();
-
-    return () => {
-      isCancelled = true;
-      if (localStream) {
-        localStream.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
-
-  // Guarantee that whenever mediaStream changes, videoRef has srcObject attached and plays
+  // Guarantee that whenever systemCameraStream changes, videoRef has srcObject attached and plays
   useEffect(() => {
     const video = videoRef.current;
-    if (video && mediaStream) {
-      video.srcObject = mediaStream;
-      video.play().catch((e) => console.warn('Webcam play error:', e));
+    if (video && systemCameraStream && (!activeStream || activeStream.type === 'local')) {
+      video.muted = true;
+      video.defaultMuted = true;
+      if (video.srcObject !== systemCameraStream) {
+        video.srcObject = systemCameraStream;
+      }
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => console.warn('Dedicated webcam play notice:', e.message));
+      }
     }
-  }, [mediaStream]);
+  }, [systemCameraStream, activeStream?.id, hasCameraAccess]);
 
   const handleDismissAlert = () => {
     dismissAlert();
@@ -113,18 +84,48 @@ export const WatchStreamView = () => {
     <div className="watch-stream-view" ref={containerRef}>
       {/* Big Surveillance Screen */}
       <div className={`dedicated-stream-container ${activeAlert ? 'alert-active' : ''}`}>
-        {/* Single persistent Video Element — always mounted so stream never detaches */}
-        <video
-          ref={videoRef}
-          className="dedicated-stream-media"
-          autoPlay
-          playsInline
-          muted
-          style={{ display: hasCameraAccess ? 'block' : 'none' }}
-        />
+        {/* Local Hardware Video Element */}
+        {(!activeStream || activeStream.type === 'local') && (
+          <video
+            ref={videoRef}
+            className="dedicated-stream-media"
+            autoPlay
+            playsInline
+            muted
+            style={{ display: hasCameraAccess ? 'block' : 'none' }}
+          />
+        )}
+
+        {/* Remote Stream Video / MJPEG Element */}
+        {activeStream?.type === 'remote' && (
+          (activeStream.url.includes('/video') || activeStream.url.includes('.mjpg')) ? (
+            <img
+              ref={remoteImgRef}
+              src={activeStream.url}
+              alt={activeStream.name}
+              className="dedicated-stream-media remote-stream-media"
+              crossOrigin="anonymous"
+              onError={() => setRemoteStreamError(true)}
+              onLoad={() => setRemoteStreamError(false)}
+            />
+          ) : (
+            <video
+              ref={remoteVideoRef}
+              src={activeStream.url}
+              className="dedicated-stream-media remote-stream-media"
+              autoPlay
+              loop
+              muted
+              playsInline
+              crossOrigin="anonymous"
+              onError={() => setRemoteStreamError(true)}
+              onPlay={() => setRemoteStreamError(false)}
+            />
+          )
+        )}
 
         {/* Fallback backdrop while camera is connecting or when camera is offline */}
-        {!hasCameraAccess && (
+        {((!activeStream || activeStream.type === 'local') ? !hasCameraAccess : remoteStreamError) && (
           <div className="dedicated-poster-viewport direct-camera-backdrop">
             <img
               src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85"
@@ -132,6 +133,42 @@ export const WatchStreamView = () => {
               className="dedicated-stream-media poster-img"
             />
             <div className="stream-lens-overlay"></div>
+
+            {/* Interactive System Camera Activation Card */}
+            {(!activeStream || activeStream.type === 'local') && !hasCameraAccess && (
+              <div className="camera-activation-overlay">
+                <div className="camera-activation-card">
+                  <div className="camera-activation-icon">
+                    <Camera size={26} className="text-orange" />
+                  </div>
+                  <h4>{isCameraInitializing ? 'Connecting System Camera...' : 'System Camera Awaiting Activation'}</h4>
+                  <p>
+                    {cameraError || 'Allow browser camera access to monitor your room with deep learning intruder defense.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="camera-activate-action-btn"
+                    onClick={startSystemCamera}
+                    disabled={isCameraInitializing}
+                  >
+                    {isCameraInitializing ? (
+                      <span>Connecting...</span>
+                    ) : (
+                      <>
+                        <Play size={13} fill="currentColor" />
+                        <span>Activate System Camera</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeStream?.type === 'remote' && remoteStreamError && (
+              <div className="remote-stream-error-notice">
+                <span>Connecting to remote stream: {activeStream.url}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -175,6 +212,7 @@ export const WatchStreamView = () => {
             </div>
           )}
 
+          {/* Active Intruder Alert Banner Overlay with 5s Countdown */}
           {activeAlert && (
             <div className="stream-alert-banner">
               <div className="alert-banner-left">
@@ -185,12 +223,15 @@ export const WatchStreamView = () => {
                   <h4 className="alert-banner-title">INTRUDER CONFIRMED IN CAMERA FEED</h4>
                   <p className="alert-banner-sub">
                     Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at{' '}
-                    {activeAlert.timestamp}
+                    {activeAlert.timestamp} •{' '}
+                    <span className="instream-countdown-text">
+                      Auto-acknowledges in {alertCountdown}s
+                    </span>
                   </p>
                 </div>
               </div>
               <button className="dismiss-alert-btn" onClick={handleDismissAlert} type="button">
-                Acknowledge Threat
+                Acknowledge Threat ({alertCountdown}s)
               </button>
             </div>
           )}
@@ -201,7 +242,7 @@ export const WatchStreamView = () => {
           <div className="stream-badges-left">
             <div className="badge-pill live-badge">
               <span className="live-dot"></span>
-              <span>Live • Attached System Camera</span>
+              <span>Live • {activeStream?.name || 'Attached System Camera'}</span>
             </div>
           </div>
 

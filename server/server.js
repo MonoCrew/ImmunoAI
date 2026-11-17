@@ -32,11 +32,11 @@ if (!fs.existsSync(SNAPSHOTS_DIR)) {
 let protectionMode = false; // Kept OFF / Standby by default
 const confidenceThreshold = 0.50; // Standard 50% decision boundary for BCEWithLogitsLoss
 
-// 5 Continuous Frames & 10s Cooldown State Tracking
+// 3 Continuous Frames & 5s Cooldown State Tracking (Faster Prediction)
 let consecutiveIntruderFrames = 0;
 let cooldownUntil = 0;
-const REQUIRED_CONSECUTIVE_FRAMES = 5;
-const COOLDOWN_DURATION_MS = 10000; // 10 seconds cooldown between snapshots
+const REQUIRED_CONSECUTIVE_FRAMES = 3; // Reduced to 3 frames for faster intruder detection (~1.8s)
+const COOLDOWN_DURATION_MS = 5000; // 5 seconds cooldown (matches 5-second auto-acknowledge window)
 
 // Real incidents gallery (starts 100% empty; filled ONLY by live camera captures)
 const incidents = [];
@@ -185,6 +185,28 @@ app.post('/api/model/engine', async (req, res) => {
   res.status(500).json({ error: 'Python AI server rejected engine switch' });
 });
 
+// Proxy remote stream snapshots/frames to bypass browser canvas CORS restrictions
+app.get('/api/stream/proxy-snapshot', async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing target stream url parameter' });
+  }
+
+  try {
+    const fetchRes = await fetch(targetUrl, { signal: AbortSignal.timeout(3500) });
+    if (!fetchRes.ok) {
+      return res.status(fetchRes.status).send('Remote stream responded with error');
+    }
+    const contentType = fetchRes.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const arrayBuffer = await fetchRes.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not fetch snapshot from remote stream', details: err.message });
+  }
+});
+
 // Detection endpoint: UI sends base64 frame string here
 app.post('/api/detect', async (req, res) => {
   const { image } = req.body;
@@ -265,7 +287,7 @@ app.post('/api/detect', async (req, res) => {
             confidence: `${result.confidence}%`,
             threatLevel: 'High Alert',
             image: imageUrl,
-            details: `Intruder confirmed after 5 continuous frames (${result.confidence}% confidence).`,
+            details: `Intruder confirmed after 3 continuous frames (${result.confidence}% confidence).`,
             box: result.box || [30, 20, 35, 60],
           };
 
@@ -283,8 +305,8 @@ app.post('/api/detect', async (req, res) => {
             message: `🚨 Intruder Confirmed (${result.confidence}%)`,
           });
 
-          console.log(`\n🚨 [ALERT BROADCAST] INTRUDER CONFIRMED (5/5 continuous frames, ${result.confidence}%)!`);
-          console.log(`⏱️ [COOLDOWN] Snapshot cooldown active for next 10 seconds.\n`);
+          console.log(`\n🚨 [ALERT BROADCAST] INTRUDER CONFIRMED (3/3 continuous frames, ${result.confidence}%)!`);
+          console.log(`⏱️ [COOLDOWN] Snapshot cooldown active for next 5 seconds.\n`);
         }
       } else {
         const remainingSec = Math.ceil((cooldownUntil - now) / 1000);

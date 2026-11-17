@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertTriangle,
+  Play,
 } from 'lucide-react';
 import { useSecurity } from '../context/useSecurity';
 import { apiDetectFrame } from '../services/api';
@@ -13,74 +14,44 @@ export const LiveStreamPlayer = () => {
   const {
     protectionMode,
     activeAlert,
+    alertCountdown,
     dismissAlert,
     triggerIntruderAlert,
     updateDlTelemetry,
     dlTelemetry,
     backendStatus,
+    activeStream,
+    systemCameraStream,
+    hasCameraAccess,
+    cameraError,
+    isCameraInitializing,
+    startSystemCamera,
   } = useSecurity();
 
-  const [hasCameraAccess, setHasCameraAccess] = useState(false);
-  const [mediaStream, setMediaStream] = useState(null);
+  const [remoteStreamError, setRemoteStreamError] = useState(false);
   const [liveBox, setLiveBox] = useState(null);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const remoteImgRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // Direct Attached System Camera Feed (getUserMedia)
-  useEffect(() => {
-    let localStream = null;
-    let isCancelled = false;
-
-    async function startCamera() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('getUserMedia is not supported by this browser');
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user',
-          },
-          audio: false,
-        });
-
-        if (isCancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        localStream = stream;
-        setMediaStream(stream);
-        setHasCameraAccess(true);
-      } catch (err) {
-        console.info('Direct system camera access notice:', err?.message || err);
-        setHasCameraAccess(false);
-      }
-    }
-
-    startCamera();
-
-    return () => {
-      isCancelled = true;
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
-  // Guarantee that whenever mediaStream changes, videoRef has srcObject attached and plays
+  // Guarantee that whenever systemCameraStream changes, videoRef has srcObject attached and plays
   useEffect(() => {
     const video = videoRef.current;
-    if (video && mediaStream) {
-      video.srcObject = mediaStream;
-      video.play().catch((e) => console.warn('Webcam play error:', e));
+    if (video && systemCameraStream && (!activeStream || activeStream.type === 'local')) {
+      video.muted = true;
+      video.defaultMuted = true;
+      if (video.srcObject !== systemCameraStream) {
+        video.srcObject = systemCameraStream;
+      }
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => console.warn('Webcam play notice:', e.message));
+      }
     }
-  }, [mediaStream]);
+  }, [systemCameraStream, activeStream?.id, hasCameraAccess]);
 
   // Frame Capture Loop: sends base64 image string to backend when Protection Mode is ON
   useEffect(() => {
@@ -95,23 +66,54 @@ export const LiveStreamPlayer = () => {
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        if (hasCameraAccess && video && video.readyState >= 2) {
-          // Adjust canvas resolution dynamically to match camera video
-          if (video.videoWidth && canvas.width !== video.videoWidth) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-          }
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let sourceEl = null;
+        const isRemote = activeStream?.type === 'remote';
+
+        if (isRemote) {
+          sourceEl = remoteVideoRef.current || remoteImgRef.current;
+        } else if (hasCameraAccess && video && video.readyState >= 2) {
+          sourceEl = video;
+        }
+
+        if (sourceEl) {
+          const w = sourceEl.videoWidth || sourceEl.naturalWidth || 640;
+          const h = sourceEl.videoHeight || sourceEl.naturalHeight || 360;
+          if (w && canvas.width !== w) canvas.width = w;
+          if (h && canvas.height !== h) canvas.height = h;
+          ctx.drawImage(sourceEl, 0, 0, canvas.width, canvas.height);
         } else {
-          // Fallback test frame if hardware camera is not yet ready
+          // Fallback test frame if hardware/remote camera is not yet ready
           ctx.fillStyle = '#121418';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.fillStyle = '#64748b';
           ctx.font = '16px monospace';
-          ctx.fillText('IMMUNOAI STANDBY SURVEILLANCE', 20, 40);
+          ctx.fillText(`IMMUNOAI FEED: ${(activeStream?.name || 'STANDBY').toUpperCase()}`, 20, 40);
         }
 
-        const base64Image = canvas.toDataURL('image/jpeg', 0.70);
+        let base64Image = null;
+        try {
+          base64Image = canvas.toDataURL('image/jpeg', 0.70);
+        } catch {
+          // If canvas tainted due to CORS on remote stream, proxy it through backend
+          if (isRemote && activeStream?.url) {
+            try {
+              const pRes = await fetch(`/api/stream/proxy-snapshot?url=${encodeURIComponent(activeStream.url)}`);
+              if (pRes.ok) {
+                const blob = await pRes.blob();
+                base64Image = await new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result);
+                  reader.readAsDataURL(blob);
+                });
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+
+        if (!base64Image) return;
+
         isSending = true;
         const res = await apiDetectFrame(base64Image);
 
@@ -124,9 +126,9 @@ export const LiveStreamPlayer = () => {
               y: res.box[1],
               w: res.box[2],
               h: res.box[3],
-              label: (res.consecutive_frames ?? 0) >= 5 ? 'INTRUDER' : (res.engine === 'yolo' ? 'TARGET ACQUIRED' : 'ANALYZING'),
+              label: (res.consecutive_frames ?? 0) >= 3 ? 'INTRUDER' : (res.engine === 'yolo' ? 'TARGET ACQUIRED' : 'ANALYZING'),
               confidence: res.confidence,
-              isConfirmed: (res.consecutive_frames ?? 0) >= 5,
+              isConfirmed: (res.consecutive_frames ?? 0) >= 3,
               frames: res.consecutive_frames ?? 0,
             });
           } else {
@@ -134,13 +136,13 @@ export const LiveStreamPlayer = () => {
           }
 
           console.log(
-            `%c[ImmunoAI DL]%c [${(res.engine || 'yolo').toUpperCase()}] Conf: ${(res.confidence ?? 0)}% | Logit: ${res.logit ?? 'N/A'} | Frames: ${res.consecutive_frames ?? 0}/5 | Latency: ${res.inference_ms ?? 0}ms`,
+            `%c[ImmunoAI DL]%c [${(res.engine || 'yolo').toUpperCase()}] Conf: ${(res.confidence ?? 0)}% | Logit: ${res.logit ?? 'N/A'} | Frames: ${res.consecutive_frames ?? 0}/3 | Latency: ${res.inference_ms ?? 0}ms`,
             'color: #f97316; font-weight: bold;',
             'color: #22c55e; font-weight: 500;'
           );
         }
 
-        // Fail-safe immediate alert trigger if confirmed by 5 continuous frames
+        // Fail-safe immediate alert trigger if confirmed by 3 continuous frames
         if (res?.alert_triggered && res?.new_incident) {
           triggerIntruderAlert(res.new_incident);
         }
@@ -149,7 +151,7 @@ export const LiveStreamPlayer = () => {
       } finally {
         isSending = false;
       }
-    }, 600); // 600ms (~1.6 FPS): 5 continuous frames = 3s detection window
+    }, 500); // 500ms (~2 FPS): 3 continuous frames = 1.5s fast detection window!
 
     return () => clearInterval(interval);
   }, [protectionMode, hasCameraAccess, triggerIntruderAlert]);
@@ -197,7 +199,7 @@ export const LiveStreamPlayer = () => {
             y: liveBox.y,
             w: liveBox.w,
             h: liveBox.h,
-            label: `${liveBox.label} (${liveBox.frames}/5)`,
+            label: `${liveBox.label} (${liveBox.frames}/3)`,
             confidence: liveBox.confidence,
             trackingId: 'SCAN',
             isConfirmed: liveBox.isConfirmed,
@@ -212,18 +214,53 @@ export const LiveStreamPlayer = () => {
 
       {/* Stream Container */}
       <div className={`stream-player-container ${activeAlert ? 'alert-active' : ''}`}>
-        {/* Single persistent Video Element — always mounted so stream never detaches */}
-        <video
-          ref={videoRef}
-          className="stream-media"
-          autoPlay
-          playsInline
-          muted
-          style={{ display: hasCameraAccess ? 'block' : 'none' }}
-        />
+        {/* Local Hardware Video Element */}
+        {(!activeStream || activeStream.type === 'local') && (
+          <video
+            ref={videoRef}
+            className="stream-media"
+            autoPlay
+            playsInline
+            muted
+            onLoadedMetadata={() => {
+              if (videoRef.current) {
+                videoRef.current.play().catch(() => {});
+              }
+            }}
+            style={{ display: hasCameraAccess ? 'block' : 'none' }}
+          />
+        )}
+
+        {/* Remote Stream Video / MJPEG Element */}
+        {activeStream?.type === 'remote' && (
+          (activeStream.url.includes('/video') || activeStream.url.includes('.mjpg')) ? (
+            <img
+              ref={remoteImgRef}
+              src={activeStream.url}
+              alt={activeStream.name}
+              className="stream-media remote-stream-media"
+              crossOrigin="anonymous"
+              onError={() => setRemoteStreamError(true)}
+              onLoad={() => setRemoteStreamError(false)}
+            />
+          ) : (
+            <video
+              ref={remoteVideoRef}
+              src={activeStream.url}
+              className="stream-media remote-stream-media"
+              autoPlay
+              loop
+              muted
+              playsInline
+              crossOrigin="anonymous"
+              onError={() => setRemoteStreamError(true)}
+              onPlay={() => setRemoteStreamError(false)}
+            />
+          )
+        )}
 
         {/* Fallback backdrop while camera is connecting or when camera is offline */}
-        {!hasCameraAccess && (
+        {((!activeStream || activeStream.type === 'local') ? !hasCameraAccess : remoteStreamError) && (
           <div className="stream-poster-viewport direct-camera-backdrop">
             <img
               src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85"
@@ -231,6 +268,42 @@ export const LiveStreamPlayer = () => {
               className="stream-media poster-img"
             />
             <div className="stream-lens-overlay"></div>
+
+            {/* Interactive System Camera Activation Card */}
+            {(!activeStream || activeStream.type === 'local') && !hasCameraAccess && (
+              <div className="camera-activation-overlay">
+                <div className="camera-activation-card">
+                  <div className="camera-activation-icon">
+                    <Camera size={26} className="text-orange" />
+                  </div>
+                  <h4>{isCameraInitializing ? 'Connecting System Camera...' : 'System Camera Awaiting Activation'}</h4>
+                  <p>
+                    {cameraError || 'Allow browser camera access to monitor your room with deep learning intruder defense.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="camera-activate-action-btn"
+                    onClick={startSystemCamera}
+                    disabled={isCameraInitializing}
+                  >
+                    {isCameraInitializing ? (
+                      <span>Connecting...</span>
+                    ) : (
+                      <>
+                        <Play size={13} fill="currentColor" />
+                        <span>Activate System Camera</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeStream?.type === 'remote' && remoteStreamError && (
+              <div className="remote-stream-error-notice">
+                <span>Connecting to remote stream: {activeStream.url}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -288,7 +361,7 @@ export const LiveStreamPlayer = () => {
             </div>
           )}
 
-          {/* Active Intruder Alert Banner Overlay */}
+          {/* Active Intruder Alert Banner Overlay with 5s Countdown */}
           {activeAlert && (
             <div className="stream-alert-banner">
               <div className="alert-banner-left">
@@ -299,12 +372,15 @@ export const LiveStreamPlayer = () => {
                   <h4 className="alert-banner-title">INTRUDER CONFIRMED IN CAMERA FEED</h4>
                   <p className="alert-banner-sub">
                     Confidence: <strong>{activeAlert.confidence}%</strong> • Tracked at{' '}
-                    {activeAlert.timestamp}
+                    {activeAlert.timestamp} •{' '}
+                    <span className="instream-countdown-text">
+                      Auto-acknowledges in {alertCountdown}s
+                    </span>
                   </p>
                 </div>
               </div>
               <button className="dismiss-alert-btn" onClick={handleDismissAlert} type="button">
-                Acknowledge Threat
+                Acknowledge Threat ({alertCountdown}s)
               </button>
             </div>
           )}
@@ -315,7 +391,7 @@ export const LiveStreamPlayer = () => {
           <div className="stream-badges-left">
             <div className="badge-pill live-badge">
               <span className="live-dot"></span>
-              <span>Live</span>
+              <span>Live • {activeStream?.name || 'Attached Camera'}</span>
             </div>
           </div>
 
